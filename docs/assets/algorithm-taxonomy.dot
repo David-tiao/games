@@ -1,0 +1,1 @@
+digraph Algorithms {rankdir=LR; graph [fontname="sans-serif"]; node [shape=box,style=rounded,fontname="sans-serif"]; "Game Universe" -> "Go: graph search and heuristic"; "Game Universe" -> "Gomoku: four-direction scoring"; "Game Universe" -> "Star: GF(2) Gaussian elimination"; "Game Universe" -> "Mines: integer constraints"; "Game Universe" -> "Balls: Kalman + Hungarian";}
