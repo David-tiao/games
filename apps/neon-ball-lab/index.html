@@ -1,0 +1,1823 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#07121f" />
+  <title>混沌光轨实验室 · V4.1 多目标追踪</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg0:#050b15;
+      --bg1:#081625;
+      --bg2:#0a2630;
+      --mint:#66efbd;
+      --cyan:#4ac4ff;
+      --amber:#ffb44a;
+      --fg:#edfff8;
+      --muted:#9ab8b7;
+      --line:rgba(125, 232, 199, 0.14);
+      --glass:rgba(7, 23, 34, 0.74);
+      --glass-strong:rgba(7, 20, 30, 0.88);
+    }
+    * { box-sizing: border-box; }
+    html, body { margin:0; width:100%; height:100%; overflow:hidden; font-family: Inter, "Noto Sans SC", "Microsoft YaHei", system-ui, sans-serif; background:#05101b; color:var(--fg); }
+    button, input { font:inherit; }
+    button { cursor:pointer; }
+    button:focus-visible, input:focus-visible { outline:2px solid var(--mint); outline-offset: 3px; }
+
+    #scene {
+      position:fixed; inset:0; overflow:hidden; isolation:isolate;
+      background:
+        radial-gradient(circle at 50% 50%, rgba(17,88,86,0.28), transparent 26%),
+        radial-gradient(circle at 50% 50%, #0a2730 0%, #081625 42%, #050d16 82%, #030811 100%);
+    }
+    #scene::before {
+      content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
+      background-image:
+        linear-gradient(rgba(102, 219, 205, 0.045) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(102, 219, 205, 0.045) 1px, transparent 1px);
+      background-size:58px 58px;
+      mask-image: radial-gradient(circle at center, black 20%, transparent 88%);
+    }
+    #scene::after {
+      content:""; position:absolute; inset:0; z-index:0; pointer-events:none;
+      background: radial-gradient(circle at center, transparent 50%, rgba(1,5,10,0.46) 100%);
+    }
+    canvas.visual {
+      position:absolute; inset:0; width:100%; height:100%; display:block; z-index:1; touch-action:none;
+    }
+
+    #fallbackOrb {
+      position:absolute; left:26%; top:42%; z-index:1; pointer-events:none;
+      width:48px; height:48px; border-radius:50%;
+      background:radial-gradient(circle at 35% 30%, #fff 0%, #c1ffe6 24%, #55edba 57%, #108e76 100%);
+      box-shadow:0 0 22px #58f8bf, 0 0 75px rgba(82,240,182,.55);
+      animation:fallbackOrbit 7s ease-in-out infinite alternate;
+      transform:translate(-50%, -50%);
+    }
+    #fallbackOrb::before{content:"";position:absolute;inset:-11px;border:1px solid rgba(112,244,206,.35);border-radius:50%;}
+    @keyframes fallbackOrbit {
+      0% {left:26%;top:42%;}
+      32% {left:48%;top:23%;}
+      67% {left:69%;top:62%;}
+      100% {left:41%;top:75%;}
+    }
+    #renderAlert {
+      display:none;position:absolute;z-index:6;left:50%;top:26%;transform:translateX(-50%);
+      max-width: min(88vw,560px);padding:14px 18px;border:1px solid #e89a59;border-radius:12px;
+      background:rgba(36,22,18,.93);color:#ffdbaf;font-size:13px;line-height:1.7;text-align:center;
+    }
+    .topbar {
+      position:absolute; z-index:4; left:clamp(18px, 3.2vw, 54px); right:clamp(18px, 3.2vw, 54px); top:clamp(18px, 3vh, 38px);
+      display:flex; justify-content:space-between; align-items:flex-start; gap:18px; pointer-events:none;
+    }
+    .brand { display:flex; align-items:center; gap:14px; }
+    .brand-mark {
+      width:50px; height:50px; border-radius:16px; display:grid; place-items:center;
+      border:1px solid rgba(109, 244, 198, 0.35); background:rgba(61, 226, 167, 0.09);
+      box-shadow:0 0 32px rgba(81,241,188,0.08);
+    }
+    .brand h1 { margin:0; font-size:clamp(19px, 1.8vw, 27px); font-weight:800; letter-spacing:.05em; line-height:1.2; }
+    .brand .sub { margin-top:5px; font-size:11px; color:#8fbab4; letter-spacing:.22em; font-weight:700; }
+    .card {
+      pointer-events:auto; background:var(--glass); border:1px solid var(--line); border-radius:18px;
+      box-shadow:0 10px 36px rgba(0,0,0,0.23); backdrop-filter:blur(18px);
+    }
+    .status-card {
+      padding:12px 15px; display:flex; align-items:center; gap:12px; min-width:260px;
+    }
+    .light { width:12px; height:12px; border-radius:50%; background:var(--mint); box-shadow:0 0 0 5px rgba(102,239,189,0.12),0 0 18px var(--mint); }
+    .status-col p { margin:0; font-size:10px; color:#9cbab8; letter-spacing:.13em; }
+    .status-col strong { display:block; margin-top:2px; font-size:15px; font-weight:800; }
+    .status-split { width:1px; height:28px; background:rgba(255,255,255,.08); }
+
+    .help {
+      position:absolute; z-index:3; left:50%; transform:translateX(-50%); bottom:160px; color:#799a9c; font-size:12px; letter-spacing:.08em; text-align:center; white-space:nowrap; pointer-events:none;
+    }
+    .uptime {
+      position:absolute; z-index:3; left:clamp(18px, 3.2vw, 54px); bottom:28px; font-size:12px; color:#79a09d; letter-spacing:.12em; pointer-events:none;
+    }
+    .uptime strong { color:#c8f8ea; font-size:14px; font-variant-numeric: tabular-nums; }
+
+    .controls-wrap {
+      position:absolute; z-index:4; left:50%; transform:translateX(-50%); bottom:18px; width:min(97vw, 1380px);
+      display:flex; justify-content:center;
+    }
+    .controls {
+      width:100%; display:flex; flex-wrap:wrap; align-items:center; justify-content:center; gap:14px;
+      padding:14px 16px; border-radius:22px; background:var(--glass); border:1px solid rgba(111,236,201,0.18);
+      box-shadow:0 18px 56px rgba(0,0,0,0.34), inset 0 1px 0 rgba(255,255,255,0.04);
+      backdrop-filter:blur(22px);
+    }
+    .btn {
+      height:44px; border-radius:12px; border:1px solid rgba(110,236,203,0.22); background:rgba(23,55,62,0.56); color:#dbfff3;
+      padding:0 16px; display:inline-flex; align-items:center; gap:8px; font-size:13px; font-weight:750; white-space:nowrap;
+      transition:transform .14s, background .14s, border-color .14s;
+    }
+    .btn:hover { transform:translateY(-2px); background:rgba(36,88,83,0.72); border-color:rgba(110,236,203,0.48); }
+    .btn.primary { background:#66efbd; color:#062a2c; border-color:#66efbd; box-shadow:0 0 20px rgba(102,239,189,0.12); }
+    .btn.primary:hover { background:#90ffd1; }
+    .sep { width:1px; height:35px; background:rgba(255,255,255,0.09); }
+    .control { min-width:148px; display:flex; flex-direction:column; gap:9px; }
+    .control label { display:flex; justify-content:space-between; gap:10px; font-size:12px; color:#c8dfdc; font-weight:700; }
+    .control output { color:#7df1c5; font-variant-numeric: tabular-nums; }
+    input[type=range] {
+      appearance:none; -webkit-appearance:none; width:100%; height:4px; border-radius:999px;
+      background:linear-gradient(90deg, #5cecc2 0%, #5cecc2 var(--pct,50%), #355560 var(--pct,50%), #355560 100%);
+    }
+    input[type=range]::-webkit-slider-thumb {
+      appearance:none; width:14px; height:14px; border-radius:50%; background:#defff3; border:3px solid #58e7b8; box-shadow:0 0 12px rgba(88,231,184,0.5);
+    }
+    input[type=range]::-moz-range-thumb {
+      width:14px; height:14px; border-radius:50%; background:#defff3; border:3px solid #58e7b8; box-shadow:0 0 12px rgba(88,231,184,0.5);
+    }
+
+    .physics-widget {position:absolute;z-index:5;top:113px;left:clamp(18px,3.2vw,54px);width:282px;
+      display:flex;flex-direction:column;gap:10px;padding:13px 14px;color:#d7ffef}
+    .physics-widget .physics-row{display:flex;align-items:center;justify-content:space-between;gap:9px}
+    .physics-widget strong{font-size:13px;letter-spacing:.04em}
+    .physics-widget small{font-size:11px;color:#95b8b4}
+    .mini-controls{display:flex;align-items:center;gap:8px}
+    .mini-controls button{height:31px;min-width:35px;border-radius:9px;border:1px solid rgba(124,244,202,.28);background:rgba(25,77,74,.75);color:#b6ffe4;font-size:20px;line-height:1}
+    .mini-controls button:disabled{opacity:.35;cursor:not-allowed}
+    .mini-controls span{font-weight:800;min-width:25px;text-align:center;font-variant-numeric:tabular-nums}
+    .challenge-btn{height:31px;padding:0 9px;border:1px solid rgba(255,185,89,.38);background:rgba(92,58,36,.35);color:#ffe0af;border-radius:9px;font-weight:750;font-size:11px}
+    .challenge-btn:disabled{opacity:.35;cursor:not-allowed}
+    .physics-widget input[type=range]{width:118px;flex:1}
+    .target-note{color:#a4f8cd!important;font-size:11px!important;line-height:1.4}
+    .grade-card{padding:15px;display:flex;flex-direction:column;gap:12px}
+    .grade-head{display:flex;justify-content:space-between;align-items:center;gap:9px}
+    .grade-head h3{font-size:14px;margin:0}
+    .grade-head button{padding:6px 9px;border:1px solid rgba(122,243,199,.3);border-radius:9px;background:rgba(19,70,68,.6);font-size:11px;color:#c4f8e7}
+    .grade-main{display:flex;align-items:baseline;gap:10px}
+    .grade-main strong{font-size:46px;letter-spacing:-.045em;line-height:1;font-variant-numeric:tabular-nums;color:#75f7c6}
+    .grade-main span{font-size:12px;color:#9bc6bc}
+    .grade-track{height:9px;border:1px solid rgba(143,255,223,.13);background:rgba(3,12,22,.9);border-radius:10px;overflow:hidden}
+    .grade-fill{height:100%;width:0%;background:linear-gradient(90deg,#f1aa62,#72eaba);transition:width .18s}
+    .grade-rows{display:flex;flex-direction:column;gap:8px}
+    .grade-line{display:grid;grid-template-columns:1fr auto;gap:12px;font-size:12px;color:#adcac5}
+    .grade-line b{font-variant-numeric:tabular-nums;color:#e4fff5}
+    .grade-info{font-size:10.5px;color:#91b6ad;line-height:1.65}
+    /* Docked error lab. Closed by default so the moving target retains the full canvas. */
+    .analysis-launcher {
+      position:absolute; z-index:6; top:116px; right:clamp(18px, 2.5vw, 30px);
+      display:flex; gap:10px; align-items:center; justify-content:center;
+      min-height:43px; padding:9px 13px; border-radius:14px;
+      border:1px solid rgba(119,246,205,.38); background:rgba(8,34,43,.91);
+      color:#e7fff6; font-size:13px; font-weight:780; letter-spacing:.03em;
+      box-shadow:0 12px 32px rgba(0,0,0,.25),0 0 24px rgba(59,232,166,.06);
+      backdrop-filter:blur(16px); transition:background .18s, border-color .18s, opacity .2s;
+    }
+    .analysis-launcher:hover, .analysis-launcher[aria-expanded="true"] {
+      background:rgba(23,68,68,.96); border-color:rgba(119,246,205,.75);
+    }
+    .analysis-launcher svg{flex:none; width:17px; height:17px; color:#77f1c1}
+    .analysis-launcher .score-peek{font-variant-numeric:tabular-nums;color:#f0ffb6;font-size:11px;font-weight:850}
+    .analysis-launcher .live-indicator {
+      padding:4px 7px; border:1px solid rgba(106,237,191,.21); border-radius:8px;
+      background:rgba(78,221,173,.08); color:#99ebcb; font-size:10px; font-weight:650;
+    }
+    .analysis-launcher .chevron{font-size:17px; line-height:1; color:#8ff4c5; transition:transform .2s}
+    .analysis-launcher[aria-expanded="true"] .chevron{transform:rotate(90deg)}
+    .debug-panel {
+      position:absolute; z-index:6; right:clamp(18px, 2.5vw, 30px); top:171px;
+      width:min(410px, calc(100vw - 36px));
+      max-height:calc(100dvh - 292px); min-height:0;
+      display:flex; flex-direction:column; gap:10px; overflow-y:auto; overflow-x:hidden;
+      padding:0 3px 2px 0; scrollbar-width:thin; scrollbar-color:rgba(126,239,198,.35) transparent;
+      pointer-events:none; visibility:hidden; opacity:0; transform:translateX(20px);
+      transition:transform .22s ease, opacity .22s ease, visibility .22s ease;
+      overscroll-behavior:contain;
+    }
+    .debug-panel.is-open {
+      pointer-events:auto; visibility:visible; opacity:1; transform:translateX(0);
+    }
+    .drawer-head {
+      display:flex; align-items:center; justify-content:space-between; gap:8px;
+      padding:10px 13px; border-radius:15px;
+      background:rgba(7,28,37,.94); border:1px solid rgba(123,242,201,.21);
+    }
+    .drawer-head strong {font-size:13px; color:#e9fff6}
+    .drawer-head small {display:block; margin-top:3px; font-size:10px; color:#88b5ad}
+    .drawer-close {
+      flex:none; padding:7px 10px; border:1px solid rgba(121,237,201,.23); border-radius:9px;
+      color:#c9ffec; background:rgba(41,97,90,.35); font-size:11px; font-weight:750;
+    }
+    .drawer-close:hover{background:rgba(56,139,119,.52)}
+    .tracking-settings {
+      padding:12px 14px; display:flex; flex-direction:column; gap:11px;
+    }
+    .tracking-settings .setting-row {display:flex;align-items:center;justify-content:space-between;gap:12px}
+    .tracking-settings .setting-row strong {font-size:12px;color:#d2f8ea}
+    .tracking-settings .setting-row small {font-size:11px;color:#93b6b1}
+    .tracking-settings input[type=range] {width:100%}
+    .trace-key {display:flex; align-items:center; gap:9px; color:#98bab2; font-size:11px; line-height:1.5}
+    .trace-swatch {width:32px; flex:none; border-top:3px dashed #ff64dd; filter:drop-shadow(0 0 3px #ff64dd)}
+    .fold-card {flex:none; min-width:0; overflow:hidden}
+    .fold-card > summary {
+      list-style:none; cursor:pointer; user-select:none; display:flex; align-items:center;
+      justify-content:space-between; gap:8px; outline-offset:-3px;
+    }
+    .fold-card > summary::-webkit-details-marker {display:none}
+    .fold-card > summary::after {
+      content:'⌄'; font-size:18px; color:#8ef3c2; flex:none; line-height:1;
+      transition:transform .18s;
+    }
+    .fold-card:not([open]) > summary::after {transform:rotate(-90deg)}
+    .fold-card:not([open]) {padding-bottom:12px}
+    .fold-card summary:focus-visible {outline:2px solid var(--mint); border-radius:7px}
+    .metrics-card { padding:14px 15px 15px; }
+    .debug-header { display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:10px; }
+    .debug-header h2 { margin:0; font-size:15px; letter-spacing:.04em; }
+    .debug-badge { font-size:10px; font-weight:800; color:#7ef3ca; padding:5px 8px; border-radius:999px; border:1px solid rgba(111,236,201,0.24); background:rgba(67,210,168,0.08); }
+    .fold-card[open] > summary {margin-bottom:10px}
+    .metrics-grid { display:grid; grid-template-columns:repeat(2, minmax(0, 1fr)); gap:10px; }
+    .metric-box { padding:10px 11px; border-radius:12px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.05); }
+    .metric-box p { margin:0; font-size:10px; color:#91b1b1; letter-spacing:.12em; }
+    .metric-box strong { display:block; margin-top:6px; font-size:17px; font-weight:800; font-variant-numeric: tabular-nums; }
+    .metric-box small { display:block; margin-top:5px; color:#86a8a7; font-size:10px; }
+
+    .chart-card { padding:12px 14px 14px; }
+    .chart-title { display:flex; justify-content:space-between; align-items:center; gap:10px; margin-bottom:8px; }
+    .chart-title h3 {flex:1}
+    .chart-card > .legend {margin-bottom:8px}
+    .chart-title h3 { margin:0; font-size:14px; }
+    .legend { display:flex; flex-wrap:wrap; gap:10px; font-size:11px; color:#9cb8b5; }
+    .legend span { display:inline-flex; align-items:center; gap:6px; }
+    .dot { width:10px; height:10px; border-radius:50%; display:inline-block; }
+    #chartCanvas { width:100%; height:170px; display:block; border-radius:14px; background:rgba(2,8,14,0.34); border:1px solid rgba(255,255,255,0.05); }
+
+    .events-card { padding:12px 14px 14px; }
+    .events-card h3 { margin:0; font-size:14px; }
+    .events-card > .events-list { margin-top:10px; }
+    .events-list { display:flex; flex-direction:column; gap:8px; max-height:205px; overflow:auto; }
+    .event-row {
+      padding:9px 10px; border-radius:12px; background:rgba(255,255,255,0.035); border:1px solid rgba(255,255,255,0.05);
+      display:grid; grid-template-columns: 62px 1fr auto; gap:10px; align-items:center;
+    }
+    .event-row b { font-size:12px; color:#ffd78b; }
+    .event-row span, .event-row small { font-size:11px; color:#a2bfbc; }
+    .event-row .tag { font-size:10px; font-weight:800; padding:4px 7px; border-radius:999px; color:#082018; background: #9ff1c8; }
+    .empty-note { color:#8ba8a9; font-size:12px; padding:10px 0 3px; }
+
+    body.focus-mode .physics-widget,
+    body.focus-mode .topbar,
+    body.focus-mode .controls-wrap,
+    body.focus-mode .help,
+    body.focus-mode .uptime,
+    body.focus-mode .debug-panel,
+    body.focus-mode .analysis-launcher { opacity:0; pointer-events:none; }
+    .topbar, .controls-wrap, .help, .uptime, .analysis-launcher { transition: opacity .22s ease; }
+
+    @media (max-width: 1024px) {
+      .debug-panel { right:16px; width:min(410px, calc(100vw - 32px)); }
+      .analysis-launcher {right:16px}
+      .help { display:none; }
+      .controls { justify-content:flex-start; }
+    }
+    @media (max-width: 760px) {
+      .topbar { flex-direction:column; align-items:flex-start; }
+      .status-card { min-width:0; }
+      .sep { display:none; }
+      .control { flex:1 1 44%; }
+      .btn { flex:1 1 42%; justify-content:center; }
+      .controls { padding:13px; gap:12px; }
+      .analysis-launcher {top:135px; min-height:41px; font-size:12px}
+      .debug-panel {left:16px; right:16px; top:187px; width:auto; max-height:calc(100dvh - 320px)}
+      .physics-widget{top:144px;left:16px;width:210px;padding:9px}
+      .physics-widget .physics-row{flex-wrap:wrap}
+      .metrics-grid { grid-template-columns: 1fr 1fr; }
+      #chartCanvas { height:150px; }
+    }
+    @media (max-height:680px) and (min-width:761px) {
+      .analysis-launcher {top:88px}
+      .debug-panel {top:139px; max-height:calc(100dvh - 252px)}
+    }
+    @media (max-height:570px) {
+      .debug-panel { max-height:calc(100dvh - 210px); }
+    }
+  </style>
+</head>
+<body>
+<main id="scene">
+  <canvas id="mainCanvas" class="visual" aria-label="混沌运动小球"></canvas>
+  <div id="fallbackOrb" aria-hidden="true"></div>
+  <div id="renderAlert" role="alert"></div>
+  <canvas id="overlayCanvas" class="visual" aria-label="视觉追踪覆盖层" style="z-index:2; pointer-events:none;"></canvas>
+
+  <header class="topbar">
+    <div class="brand">
+      <div class="brand-mark" aria-hidden="true">
+        <svg width="28" height="28" viewBox="0 0 40 40" fill="none">
+          <path d="M4 24c9 4 11-15 21-10 6 3-2 14 11 3" stroke="#66EDB8" stroke-width="2.4" stroke-linecap="round"/>
+          <circle cx="28.5" cy="14.5" r="5.3" fill="#9FFFE0"/>
+          <circle cx="27" cy="13" r="1.9" fill="white"/>
+        </svg>
+      </div>
+      <div>
+        <h1>混沌光轨实验室 <span style="color:#5be3b6">.</span></h1>
+        <div class="sub">NEURAL TRACKING TESTBED · LOCAL YOLO · V4.0</div>
+      </div>
+    </div>
+    <div class="status-card card">
+      <span id="statusLight" class="light"></span>
+      <div class="status-col">
+        <p>当前颜色</p>
+        <strong id="colorName">薄荷绿</strong>
+      </div>
+      <span class="status-split"></span>
+      <div class="status-col">
+        <p>下次换色</p>
+        <strong id="countdown">05.0 s</strong>
+      </div>
+    </div>
+  </header>
+
+  <section class="physics-widget card" aria-label="多小球和物理实验控制">
+    <div class="physics-row"><strong>多球碰撞实验</strong><small id="collisionCount">碰撞 0 次</small></div>
+    <div class="physics-row">
+      <span class="target-note">#1 为追踪目标</span>
+      <div class="mini-controls">
+        <button type="button" id="removeBall" title="减少一个干扰球">−</button>
+        <span id="ballCount">1</span>
+        <button type="button" id="addBall" title="增加一个可碰撞小球">+</button>
+      </div>
+    </div>
+    <div class="physics-row"><small>碰撞恢复系数</small><small id="restitutionLabel">0.90</small></div>
+    <input id="restitution" type="range" aria-label="碰撞恢复系数" min="0.35" max="1" step="0.05" value="0.90" />
+    <div class="physics-row"><small>质量随面积变化</small><button class="challenge-btn" id="collisionChallenge" title="在 #1 球前方生成迎面而来的碰撞球">制造碰撞</button></div>
+  </section>
+
+  <button type="button" class="analysis-launcher" id="analysisToggle" aria-expanded="false" aria-controls="debugPanel" title="展开 / 收起实时误差分析（快捷键 E）">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M3 19V5M3 19h18M6.5 15l4-5 3 2 5-7"/>
+    </svg>
+    <span id="analysisToggleLabel">展开误差分析</span>
+    <span class="live-indicator" id="analysisLive">记录中</span>
+    <span class="score-peek" id="scorePeek">--/100</span>
+    <span class="chevron" aria-hidden="true">›</span>
+  </button>
+  <aside class="debug-panel" id="debugPanel" aria-label="实时误差分析详情" aria-hidden="true" inert>
+    <div class="drawer-head">
+      <div><strong>算法评估中心</strong><small>收起后数据与变向事件仍持续记录</small></div>
+      <button type="button" class="drawer-close" id="analysisClose" aria-label="收起误差分析">收起 ✕</button>
+    </div>
+    <div class="tracking-settings card">
+      <div class="setting-row"><strong>算法追踪长尾</strong><small id="trackTailLabel">28 秒</small></div>
+      <input id="trackTail" aria-label="算法追踪尾迹长度" type="range" min="8" max="45" step="1" value="28" />
+      <div class="trace-key"><span class="trace-swatch"></span><span>反色虚线 = 算法追踪历史；宽柔光 = 小球自身轨迹</span></div>
+    </div>
+    <details class="metrics-card card fold-card" open>
+      <summary class="debug-header">
+        <h2>实时误差面板</h2>
+        <span class="debug-badge" id="algoBadge">等待连接算法</span>
+      </summary>
+      <div class="metrics-grid">
+        <div class="metric-box">
+          <p>检测误差</p>
+          <strong id="detErr">-- px</strong>
+          <small>反色检测框 vs 真实球心</small>
+        </div>
+        <div class="metric-box">
+          <p>估计误差</p>
+          <strong id="estErr">-- px</strong>
+          <small>白色方框 vs 真实球心</small>
+        </div>
+        <div class="metric-box">
+          <p>未来预测误差</p>
+          <strong id="futureErr">-- px</strong>
+          <small>菱形预测点 · +350ms</small>
+        </div>
+        <div class="metric-box">
+          <p>最近一次变向</p>
+          <strong id="lastTurn">未触发</strong>
+          <small id="lastTurnDetail">等待急转事件</small>
+        </div>
+        <div class="metric-box">
+          <p>RMSE（估计）</p>
+          <strong id="rmse">--</strong>
+          <small>实时累计</small>
+        </div>
+        <div class="metric-box">
+          <p>平均恢复时间</p>
+          <strong id="recovery">-- s</strong>
+          <small>变向后误差恢复</small>
+        </div>
+      </div>
+    </details>
+
+    <section class="grade-card card" aria-label="算法百分制综合评估">
+      <div class="grade-head"><h3>算法综合评估 · 满分 100</h3><button type="button" id="resetScore">重置评估</button></div>
+      <div class="grade-main"><strong id="gradeValue">--</strong><span id="gradeStatus">等待采样</span></div>
+      <div class="grade-track"><div class="grade-fill" id="gradeFill"></div></div>
+      <div class="grade-rows">
+        <div class="grade-line"><span>目标检测精度</span><b id="gradeDetect">-- / 25</b></div>
+        <div class="grade-line"><span>状态估计精度</span><b id="gradeEstimate">-- / 25</b></div>
+        <div class="grade-line"><span>未来预测精度</span><b id="gradePredict">-- / 30</b></div>
+        <div class="grade-line"><span>变向 / 碰撞恢复</span><b id="gradeTurn">-- / 15</b></div>
+        <div class="grade-line"><span>检测连续性</span><b id="gradeContinuity">-- / 5</b></div>
+      </div>
+      <div class="grade-info" id="gradeExplanation">评分针对 #1 号球；至少 20 帧检测、10 次到期预测及 1 次变向/碰撞事件，才给出正式成绩。非官方基准，适合调参比较。</div>
+    </section>
+
+    <details class="chart-card card fold-card" open>
+      <summary class="chart-title"><h3>误差时间图（最近 18 秒）</h3></summary>
+      <div class="legend">
+        <span><i class="dot" style="background:#ec6cff"></i>检测</span>
+        <span><i class="dot" style="background:#f6fff5"></i>估计</span>
+        <span><i class="dot" style="background:#ffb44a"></i>未来预测</span>
+        <span><i class="dot" style="background:#ff6178"></i>变向标记</span>
+      </div>
+      <canvas id="chartCanvas" width="340" height="170"></canvas>
+    </details>
+
+    <details class="events-card card fold-card" open>
+      <summary><h3>变向事件分析</h3></summary>
+      <div class="events-list" id="eventsList">
+        <div class="empty-note">发生变向或碰撞后，这里会记录峰值误差与恢复时间。</div>
+      </div>
+    </details>
+  </aside>
+
+  <div class="help">多球弹性碰撞 + 随机转向 · #1 为追踪目标 · 反色虚线为算法长尾 · C 清尾 · E 分析 · D 演示追踪 · T 本机算法</div>
+  <div class="uptime">已运行 <strong id="elapsed">00:00</strong></div>
+
+  <section class="controls-wrap">
+    <div class="controls">
+      <button class="btn primary" id="toggle">暂停运动</button>
+      <button class="btn" id="recolor">换个颜色</button>
+      <button class="btn" id="clearTail" title="立刻清除小球尾迹和算法追踪尾迹（快捷键 C）">一键清尾</button>
+      <div class="sep"></div>
+      <div class="control">
+        <label for="speed">运动速度 <output id="speedLabel">1.0×</output></label>
+        <input id="speed" type="range" min="0.4" max="3.0" step="0.1" value="1.0" />
+      </div>
+      <div class="control">
+        <label for="tail">尾迹长度 <output id="tailLabel">10 秒</output></label>
+        <input id="tail" type="range" min="3" max="20" step="1" value="10" />
+      </div>
+      <div class="sep"></div>
+      <button class="btn" id="mode">轨迹：混沌漫游</button>
+      <button class="btn" id="demoTrack" aria-pressed="true" title="浏览器像素阈值检测 + α-β 状态估计，无需 Python">演示追踪中 · 停止</button>
+      <button class="btn" id="track" title="使用你的 Python OpenCV / YOLO + Kalman，启动本地服务后连接">连接本机算法</button>
+      <button class="btn" id="focus">视觉净化 H</button>
+      <button class="btn" id="fullscreen">全屏</button>
+    </div>
+  </section>
+</main>
+
+<script>
+(() => {
+  'use strict';
+
+  const $ = (id) => document.getElementById(id);
+  const mainCanvas = $('mainCanvas');
+  const overlayCanvas = $('overlayCanvas');
+  const chartCanvas = $('chartCanvas');
+  const ctx = mainCanvas.getContext('2d');
+  const overlayCtx = overlayCanvas.getContext('2d');
+  const chartCtx = chartCanvas.getContext('2d');
+
+  // The analytics drawer is presentation-only: it never pauses detection,
+  // estimation, chart sampling, or the turn-event collection pipeline.
+  function setAnalysisOpen(open, restoreFocus = false) {
+    const panel = $('debugPanel');
+    const toggle = $('analysisToggle');
+    panel.classList.toggle('is-open', open);
+    panel.inert = !open;
+    panel.setAttribute('aria-hidden', String(!open));
+    toggle.setAttribute('aria-expanded', String(open));
+    $('analysisToggleLabel').textContent = open ? '收起误差分析' : '展开误差分析';
+    if (restoreFocus) toggle.focus();
+  }
+  $('analysisToggle').addEventListener('click', () =>
+    setAnalysisOpen(!$('debugPanel').classList.contains('is-open')));
+  $('analysisClose').addEventListener('click', () => setAnalysisOpen(false, true));
+  setAnalysisOpen(false);
+
+  const palette = [
+    {h:156,name:'薄荷绿'},{h:192,name:'冰川蓝'},{h:267,name:'星云紫'},{h:330,name:'霓虹粉'},
+    {h:42,name:'耀金黄'},{h:12,name:'珊瑚橘'},{h:225,name:'电光蓝'},{h:100,name:'荧光青柠'},
+    {h:292,name:'梦幻洋红'},{h:174,name:'海洋青'},{h:352,name:'玫瑰红'},{h:58,name:'柠檬黄'},
+    {h:245,name:'宇宙蓝'},{h:26,name:'日落橙'}
+  ];
+  const modes = ['混沌漫游','漩涡漂移','骤变机动'];
+  const CHANGE_INTERVAL = 5;
+  const HISTORY_CHART_SECONDS = 18;
+
+  let w = 1, h = 1, dpr = 1;
+  let elapsed = 0, lastNow = performance.now(), lastChange = 0;
+  let paused = false, started = false;
+  let speedFactor = 1.0, tailSecs = 10, modeIndex = 0;
+  let tracking = false, trackingMode = null, trackData = null, trackSince = 0;
+  let trackingTailSecs = 28;
+  const extraBalls = [];
+  let nextBallId = 2, collisionCount = 0, restitution = .90;
+  let lastScoreUpdated = 0;
+  const trackingTrace = [];
+  const motTraces = new Map();
+  let lastTraceAt = -Infinity, lastDemoAt = -Infinity;
+  const demoCanvas = document.createElement('canvas');
+  const demoCtx = demoCanvas.getContext('2d', {willReadFrequently:true});
+  let demoState = {ready:false,x:0,y:0,vx:0,vy:0,t:0,lost:0,frames:0};
+  let pendingRequest = false;
+  let colorIndex = 0, hue = palette[0].h, oldHue = hue, transitionElapsed = 1;
+  let targetPoint = null, nextManeuverAt = 0, wander = 0;
+  let turnCooldownUntil = 0, lastAngle = 0;
+  let eventCounter = 0;
+  let lastErrorMessage = '';
+  let lastChartAt = -1;
+
+  const stars = Array.from({length: 90}, (_, i) => ({
+    x: Math.abs(Math.sin(i * 57.13 + 3.2)) % 1,
+    y: Math.abs(Math.sin(i * 91.77 + 0.8)) % 1,
+    r: 0.6 + (i % 4) * 0.25,
+    a: 0.07 + (i % 5) * 0.03,
+  }));
+
+  const history = [];
+  const truthSamples = [];
+  const metricsHistory = [];
+  const pendingFutureEvals = [];
+  const turnEvents = [];
+  const aggregate = {
+    estCount: 0,
+    estSqSum: 0,
+    observations: 0,
+    detections: 0,
+    detSqSum: 0,
+    estimateValid: 0,
+    predictionTotal: 0,
+    predSqSum: 0,
+    predCount: 0,
+    recoveryCount: 0,
+    recoverySum: 0,
+    lastDet: null,
+    lastEst: null,
+    lastFuture: null,
+  };
+
+  const ball = {
+    x: 0, y: 0,
+    angle: -0.55,
+    turnRate: 0,
+    targetTurn: 0,
+    speedScale: 1.0,
+    speedTarget: 1.0,
+    radius: 24,
+  };
+
+  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  const angleDelta = (a, b) => Math.atan2(Math.sin(a - b), Math.cos(a - b));
+  const mixHue = (a, b, k) => {
+    const d = ((b - a + 540) % 360) - 180;
+    return ((a + d * k) % 360 + 360) % 360;
+  };
+  const currentHue = () => mixHue(oldHue, hue, Math.min(1, transitionElapsed / 0.65));
+
+  function setRangeVisual(el) {
+    const pct = ((Number(el.value) - Number(el.min)) / (Number(el.max) - Number(el.min))) * 100;
+    el.style.setProperty('--pct', pct + '%');
+  }
+
+  function refreshPhysicsWidget() {
+    $('ballCount').textContent = String(extraBalls.length+1);
+    $('collisionCount').textContent = `碰撞 ${collisionCount} 次`;
+    $('addBall').disabled = extraBalls.length >= 7;
+    $('removeBall').disabled = extraBalls.length <= 0;
+    $('collisionChallenge').disabled = extraBalls.length >= 7;
+  }
+
+  function spawnBall(challenge=false) {
+    if(extraBalls.length >= 7) return;
+    const r = 15 + Math.random()*5;
+    let x=w*.68,y=h*.46;
+    let angle=Math.random()*Math.PI*2;
+    let velocity=130+Math.random()*115;
+    if(challenge){
+      const forwardX=Math.cos(ball.angle),forwardY=Math.sin(ball.angle);
+      const offset=ball.radius+r+55;
+      const forwardAllowed=ball.x+forwardX*offset>r+8 && ball.x+forwardX*offset<w-r-8 &&
+                           ball.y+forwardY*offset>r+8 && ball.y+forwardY*offset<h-r-8;
+      const dir=forwardAllowed ? 1 : -1;
+      x=clamp(ball.x+forwardX*offset*dir,r+8,w-r-8);
+      y=clamp(ball.y+forwardY*offset*dir,r+8,h-r-8);
+      angle=ball.angle+(dir===1?Math.PI:0);
+      velocity=dir===1?225:450;
+    }else{
+      for(let attempt=0;attempt<100;attempt++){
+        x=clamp(40+Math.random()*(w-80),r+12,w-r-12);
+        y=clamp(40+Math.random()*(h-80),r+12,h-r-12);
+        if(Math.hypot(x-ball.x,y-ball.y)<ball.radius+r+80) continue;
+        if(extraBalls.some(b=>Math.hypot(x-b.x,y-b.y)<b.radius+r+45))continue;
+        break;
+      }
+    }
+    extraBalls.push({id:nextBallId++,x,y,vx:Math.cos(angle)*velocity,vy:Math.sin(angle)*velocity,
+      radius:r,mass:r*r,hue:35+Math.random()*300, history:[], lastHit:-10});
+    refreshPhysicsWidget();
+    resetTrackingStats();
+  }
+  function removeBall(){
+    if(!extraBalls.length)return;
+    extraBalls.pop();refreshPhysicsWidget();resetTrackingStats();
+  }
+
+  function resolveCollision(a,b){
+    let dx=b.x-a.x,dy=b.y-a.y;
+    let dist=Math.hypot(dx,dy);
+    const minDist=a.radius+b.radius;
+    if(dist>=minDist)return false;
+    if(dist<1e-5){dx=minDist;dy=0;dist=minDist;}
+    const nx=dx/dist,ny=dy/dist;
+    const inverseA=1/a.mass,inverseB=1/b.mass,invSum=inverseA+inverseB;
+    const overlap=minDist-dist;
+    // Project apart in proportion to inverse masses (prevent permanent overlap).
+    a.x-=nx*overlap*(inverseA/invSum);
+    a.y-=ny*overlap*(inverseA/invSum);
+    b.x+=nx*overlap*(inverseB/invSum);
+    b.y+=ny*overlap*(inverseB/invSum);
+    const relative=(b.vx-a.vx)*nx+(b.vy-a.vy)*ny;
+    if(relative>=0)return false;
+    const impulse=-(1+restitution)*relative/invSum;
+    a.vx-=impulse*inverseA*nx;a.vy-=impulse*inverseA*ny;
+    b.vx+=impulse*inverseB*nx;b.vy+=impulse*inverseB*ny;
+    return true;
+  }
+
+  function updatePhysics(dt,speedPx){
+    // Main chaotic ball is a driven body; the others move inertially with drag.
+    // We resolve the normal impulse from both masses and their relative speed.
+    const mainBody={x:ball.x,y:ball.y,vx:Math.cos(ball.angle)*speedPx,vy:Math.sin(ball.angle)*speedPx,
+      radius:ball.radius,mass:ball.radius*ball.radius};
+    const damping=Math.exp(-0.014*dt);
+    const collisionBefore=collisionCount;
+    for(const b of extraBalls){
+      b.vx*=damping;b.vy*=damping;
+      // Gentle nonperiodic perturbations avoid perfectly repetitive trajectories.
+      b.vx+=Math.random()*8*dt-4*dt;
+      b.vy+=Math.random()*8*dt-4*dt;
+      b.x+=b.vx*dt;b.y+=b.vy*dt;
+      if(b.x<b.radius){b.x=b.radius;b.vx=Math.abs(b.vx)*restitution;}
+      if(b.x>w-b.radius){b.x=w-b.radius;b.vx=-Math.abs(b.vx)*restitution;}
+      if(b.y<b.radius){b.y=b.radius;b.vy=Math.abs(b.vy)*restitution;}
+      if(b.y>h-b.radius){b.y=h-b.radius;b.vy=-Math.abs(b.vy)*restitution;}
+    }
+    let mainHit=false;
+    const bodies=[mainBody,...extraBalls];
+    for(let i=0;i<bodies.length;i++)for(let j=i+1;j<bodies.length;j++){
+      const a=bodies[i],b=bodies[j];
+      if(resolveCollision(a,b)){
+        collisionCount++;
+        if(i===0){mainHit=true;}
+      }
+    }
+    ball.x=clamp(mainBody.x,ball.radius,w-ball.radius);
+    ball.y=clamp(mainBody.y,ball.radius,h-ball.radius);
+    if(mainHit){
+      const v=Math.hypot(mainBody.vx,mainBody.vy);
+      if(v>5){
+        ball.angle=Math.atan2(mainBody.vy,mainBody.vx);
+        ball.speedScale=clamp(v/(250*speedFactor),.18,2.5);
+        ball.speedTarget=ball.speedScale;
+        ball.turnRate*=.45;
+      }
+      if(elapsed>turnCooldownUntil)addTurnEvent('碰撞',aggregate.lastEst);
+    }
+    for(const b of extraBalls){
+      const orbHue=(currentHue()+b.hue)%360;
+      b.history.push({x:b.x,y:b.y,t:elapsed,h:orbHue});
+      while(b.history.length&&elapsed-b.history[0].t>Math.min(7,tailSecs))b.history.shift();
+    }
+    if(collisionCount!==collisionBefore)refreshPhysicsWidget();
+  }
+
+  function resize() {
+    const oldW = w, oldH = h;
+    w = window.innerWidth;
+    h = window.innerHeight;
+    dpr = Math.min(window.devicePixelRatio || 1, 2);
+
+    for (const canvas of [mainCanvas, overlayCanvas]) {
+      canvas.width = Math.round(w * dpr);
+      canvas.height = Math.round(h * dpr);
+      canvas.style.width = w + 'px';
+      canvas.style.height = h + 'px';
+    }
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    overlayCtx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    if (!started) {
+      ball.x = w * 0.26;
+      ball.y = h * 0.42;
+      started = true;
+    } else {
+      const sx = oldW ? w / oldW : 1;
+      const sy = oldH ? h / oldH : 1;
+      ball.x *= sx;
+      ball.y *= sy;
+      for (const p of history) { p.x *= sx; p.y *= sy; }
+      for (const p of truthSamples) { p.x *= sx; p.y *= sy; }
+      if (targetPoint) { targetPoint.x *= sx; targetPoint.y *= sy; }
+      for(const b of extraBalls){
+        b.x=clamp(b.x*sx,b.radius,w-b.radius);b.y=clamp(b.y*sy,b.radius,h-b.radius);
+        for(const p of b.history){p.x*=sx;p.y*=sy;}
+      }
+    }
+  }
+
+  function chooseNextColor() {
+    colorIndex = (colorIndex + 5) % palette.length;
+    oldHue = currentHue();
+    hue = palette[colorIndex].h;
+    transitionElapsed = 0;
+    lastChange = elapsed;
+    $('colorName').textContent = palette[colorIndex].name;
+    const light = $('statusLight');
+    light.style.background = `hsl(${hue} 100% 68%)`;
+    light.style.boxShadow = `0 0 0 5px hsla(${hue},100%,60%,.12), 0 0 18px hsl(${hue} 100% 65%)`;
+  }
+
+  function planManeuver(forceStrong = false) {
+    const strong = forceStrong || Math.random() < (0.22 + modeIndex * 0.12);
+    const dir = Math.random() < 0.5 ? -1 : 1;
+    const base = modeIndex === 1 ? 0.9 + Math.random() * 1.35
+               : modeIndex === 2 ? 1.15 + Math.random() * 1.95
+               : 0.45 + Math.random() * 1.35;
+    ball.targetTurn = dir * Math.min(3.15, strong ? base * 1.15 : base);
+    ball.speedTarget = modeIndex === 2 ? 0.72 + Math.random() * 1.28 : 0.80 + Math.random() * 0.82;
+    nextManeuverAt = elapsed + (modeIndex === 2 ? 0.48 + Math.random() * 1.08 : 0.82 + Math.random() * 1.9);
+  }
+
+  function getTruthAt(t) {
+    if (!truthSamples.length) return null;
+    if (t <= truthSamples[0].t) return {x: truthSamples[0].x, y: truthSamples[0].y};
+    for (let i = truthSamples.length - 1; i >= 1; i--) {
+      const b = truthSamples[i];
+      const a = truthSamples[i - 1];
+      if (t >= a.t && t <= b.t) {
+        const k = (t - a.t) / Math.max(1e-6, (b.t - a.t));
+        return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k };
+      }
+    }
+    const last = truthSamples[truthSamples.length - 1];
+    return {x:last.x, y:last.y};
+  }
+
+  function addTurnEvent(kind, currentEstErr) {
+    const ev = {
+      id: ++eventCounter,
+      t: elapsed,
+      kind,
+      peakEst: null,
+      peakFuture: null,
+      baseline: currentEstErr ?? null,
+      recoveryTime: null,
+      stableSince: null,
+      closed: false,
+    };
+    turnEvents.unshift(ev);
+    while (turnEvents.length > 8) turnEvents.pop();
+    turnCooldownUntil = elapsed + 0.7;
+    updateEventsList();
+  }
+
+  function updateTurnAnalytics(currentEstErr, t, futureErr = null) {
+    for (const ev of turnEvents) {
+      if (t < ev.t || t - ev.t > 2.8) continue;
+      if (currentEstErr != null) {
+        ev.peakEst = Math.max(ev.peakEst ?? 0, currentEstErr);
+        if (ev.baseline == null) ev.baseline = currentEstErr;
+      }
+      if (futureErr != null) ev.peakFuture = Math.max(ev.peakFuture ?? 0, futureErr);
+      if (ev.closed || currentEstErr == null) continue;
+      const age = t - ev.t;
+      const threshold = Math.max(12, (ev.baseline ?? 0) * 1.45 + 4);
+      if (age > 0.18 && currentEstErr < threshold) {
+        if (ev.stableSince == null) ev.stableSince = t;
+        if (ev.recoveryTime == null && t - ev.stableSince >= 0.18) {
+          ev.recoveryTime = ev.stableSince - ev.t;
+          aggregate.recoveryCount++;
+          aggregate.recoverySum += ev.recoveryTime;
+          ev.closed = true;
+        }
+      } else {
+        ev.stableSince = null;
+      }
+    }
+    updateEventsList();
+  }
+
+  function update(dt) {
+    if (!Number.isFinite(dt) || dt <= 0) return;
+    elapsed += dt;
+    transitionElapsed += dt;
+    if (elapsed - lastChange >= CHANGE_INTERVAL) chooseNextColor();
+    if (elapsed >= nextManeuverAt) planManeuver(false);
+
+    wander += (-2.5 * wander * dt) + Math.sqrt(Math.max(0, dt)) * (modeIndex === 2 ? 2.45 : 1.25) * (Math.random() * 2 - 1);
+    wander = clamp(wander, -1.32, 1.32);
+
+    let wantedTurn = ball.targetTurn + wander * 0.5;
+    if (modeIndex === 1) wantedTurn += Math.sin(elapsed * 0.72) * 0.35 + Math.sin(elapsed * 1.93) * 0.18;
+    if (modeIndex === 2) wantedTurn += Math.sin(elapsed * 2.7) * 0.24;
+
+    const margin = Math.min(200, Math.min(w, h) * 0.22);
+    const hard = ball.radius + 8;
+    const bx = ball.x < margin ? (margin - ball.x) / margin : ball.x > w - margin ? -(ball.x - (w - margin)) / margin : 0;
+    const by = ball.y < margin ? (margin - ball.y) / margin : ball.y > h - margin ? -(ball.y - (h - margin)) / margin : 0;
+    if (bx || by) {
+      const inward = Math.atan2(by, bx);
+      const diff = angleDelta(inward, ball.angle);
+      wantedTurn += clamp(diff * 3.8, -4.8, 4.8) * Math.min(1, Math.hypot(bx, by) * 1.4);
+    }
+
+    if (targetPoint) {
+      const desired = Math.atan2(targetPoint.y - ball.y, targetPoint.x - ball.x);
+      const diff = angleDelta(desired, ball.angle);
+      wantedTurn += clamp(diff * 4.2, -5.0, 5.0);
+      if (Math.hypot(targetPoint.x - ball.x, targetPoint.y - ball.y) < 60 || elapsed - targetPoint.t > 4) {
+        targetPoint = null;
+      }
+    }
+
+    const maxTurn = modeIndex === 2 ? 4.3 : 3.35;
+    ball.turnRate += clamp(wantedTurn - ball.turnRate, -7.2 * dt, 7.2 * dt);
+    ball.turnRate = clamp(ball.turnRate, -maxTurn, maxTurn);
+    ball.angle += ball.turnRate * dt;
+    ball.speedScale += (ball.speedTarget - ball.speedScale) * Math.min(1, dt * 1.06);
+
+    const speedPx = 250 * speedFactor * ball.speedScale;
+    ball.x += Math.cos(ball.angle) * speedPx * dt;
+    ball.y += Math.sin(ball.angle) * speedPx * dt;
+
+    if (ball.x > w - hard) { ball.x = w - hard; ball.angle = Math.PI - ball.angle; ball.turnRate *= -0.44; targetPoint = null; }
+    if (ball.x < hard) { ball.x = hard; ball.angle = Math.PI - ball.angle; ball.turnRate *= -0.44; targetPoint = null; }
+    if (ball.y > h - hard) { ball.y = h - hard; ball.angle = -ball.angle; ball.turnRate *= -0.44; targetPoint = null; }
+    if (ball.y < hard) { ball.y = hard; ball.angle = -ball.angle; ball.turnRate *= -0.44; targetPoint = null; }
+
+    updatePhysics(dt,speedPx);
+    const currH = currentHue();
+    history.push({ x: ball.x, y: ball.y, h: currH, t: elapsed });
+    truthSamples.push({ x: ball.x, y: ball.y, t: elapsed });
+    while (history.length && elapsed - history[0].t > tailSecs) history.shift();
+    while (truthSamples.length && elapsed - truthSamples[0].t > Math.max(10, HISTORY_CHART_SECONDS + 4)) truthSamples.shift();
+
+    const angularSpeed = Math.abs(angleDelta(ball.angle, lastAngle)) / Math.max(dt, 1e-4);
+    if (elapsed > turnCooldownUntil && angularSpeed > 1.55 && speedPx > 120) {
+      addTurnEvent(angularSpeed > 2.25 ? '急转' : '变向', aggregate.lastEst);
+    }
+    lastAngle = ball.angle;
+
+    while (pendingFutureEvals.length && pendingFutureEvals[0].due <= elapsed) {
+      const item = pendingFutureEvals.shift();
+      const truth = getTruthAt(item.due);
+      if (!truth) continue;
+      const err = Math.hypot(item.fx - truth.x, item.fy - truth.y);
+      aggregate.lastFuture = err;
+      aggregate.predCount++;aggregate.predSqSum+=err*err;
+      upsertMetricPoint('future', err, item.due);
+      updateTurnAnalytics(null, item.due, err);
+      updateMetricBoxes();
+    }
+  }
+
+  function drawStars() {
+    for (const s of stars) {
+      const x = s.x * w;
+      const y = s.y * h;
+      ctx.beginPath();
+      ctx.arc(x, y, s.r, 0, Math.PI * 2);
+      ctx.fillStyle = `rgba(158,228,215,${s.a})`;
+      ctx.fill();
+    }
+  }
+
+  function drawTrail() {
+    if (history.length < 2) return;
+    const n = history.length;
+    for (let pass = 0; pass < 2; pass++) {
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      for (let i = 1; i < n; i += 4) {
+        const j = Math.min(n - 1, i + 3);
+        const a = history[i - 1];
+        const b = history[j];
+        const p = j / n;
+        const alpha = Math.pow(p, 1.35);
+        const grad = ctx.createLinearGradient(a.x, a.y, b.x + 0.01, b.y + 0.01);
+        grad.addColorStop(0, `hsla(${a.h}, 100%, ${pass === 0 ? 57 : 70}%, ${pass === 0 ? alpha * 0.16 : alpha * 0.92})`);
+        grad.addColorStop(1, `hsla(${b.h}, 100%, ${pass === 0 ? 64 : 78}%, ${pass === 0 ? alpha * 0.23 : alpha * 0.98})`);
+        ctx.strokeStyle = grad;
+        ctx.lineWidth = pass === 0 ? 4 + p * 36 : 1.0 + p * 8.7;
+        ctx.beginPath();
+        ctx.moveTo(a.x, a.y);
+        for (let k = i; k <= j; k++) ctx.lineTo(history[k].x, history[k].y);
+        ctx.stroke();
+      }
+    }
+
+    const begin = Math.max(0, n - 24);
+    ctx.beginPath();
+    ctx.moveTo(history[begin].x, history[begin].y);
+    for (let i = begin + 1; i < n; i++) ctx.lineTo(history[i].x, history[i].y);
+    ctx.strokeStyle = 'rgba(244,255,253,0.74)';
+    ctx.lineWidth = 1.7;
+    ctx.stroke();
+  }
+
+  function drawSecondaryBalls() {
+    for(const b of extraBalls){
+      if(b.history.length>1){
+        ctx.save();ctx.lineWidth=3.5;ctx.lineCap='round';ctx.lineJoin='round';
+        for(let i=1;i<b.history.length;i+=3){
+          const p=b.history[i-1],q=b.history[Math.min(i+2,b.history.length-1)];
+          const age=(elapsed-q.t)/Math.min(7,tailSecs);
+          ctx.strokeStyle=`hsla(${q.h},100%,65%,${Math.max(.04,.45*(1-age))})`;
+          ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(q.x,q.y);ctx.stroke();
+        }
+        ctx.restore();
+      }
+      const c=(currentHue()+b.hue)%360,r=b.radius;
+      const g=ctx.createRadialGradient(b.x,b.y,2,b.x,b.y,r*2.8);
+      g.addColorStop(0,`hsla(${c},100%,75%,.3)`);g.addColorStop(1,`hsla(${c},100%,60%,0)`);
+      ctx.fillStyle=g;ctx.beginPath();ctx.arc(b.x,b.y,r*2.8,0,Math.PI*2);ctx.fill();
+      const inner=ctx.createRadialGradient(b.x-r*.28,b.y-r*.33,1,b.x,b.y,r);
+      inner.addColorStop(0,'#fff');inner.addColorStop(.26,`hsl(${c} 100% 83%)`);
+      inner.addColorStop(1,`hsl(${c} 94% 46%)`);
+      ctx.fillStyle=inner;ctx.beginPath();ctx.arc(b.x,b.y,r,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='rgba(230,255,253,.85)';ctx.font='800 10px Inter,system-ui';
+      ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText(String(b.id),b.x,b.y+2);
+    }
+    ctx.textAlign='start';ctx.textBaseline='alphabetic';
+  }
+
+  function drawBall() {
+    const x = ball.x, y = ball.y, r = ball.radius, c = currentHue();
+
+    const halo = ctx.createRadialGradient(x, y, 2, x, y, 108);
+    halo.addColorStop(0, `hsla(${c},100%,72%,0.50)`);
+    halo.addColorStop(0.22, `hsla(${c},100%,64%,0.24)`);
+    halo.addColorStop(0.58, `hsla(${c},100%,58%,0.08)`);
+    halo.addColorStop(1, `hsla(${c},100%,50%,0)`);
+    ctx.fillStyle = halo;
+    ctx.beginPath();
+    ctx.arc(x, y, 108, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.arc(x, y, r + 11, 0, Math.PI * 2);
+    ctx.strokeStyle = `hsla(${c},100%,78%,0.24)`;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+
+    const inner = ctx.createRadialGradient(x - r * 0.34, y - r * 0.38, 1, x, y, r * 1.2);
+    inner.addColorStop(0, '#ffffff');
+    inner.addColorStop(0.22, `hsl(${c} 100% 93%)`);
+    inner.addColorStop(0.58, `hsl(${c} 100% 69%)`);
+    inner.addColorStop(1, `hsl(${c} 90% 40%)`);
+
+    ctx.save();
+    ctx.shadowColor = `hsl(${c} 100% 62%)`;
+    ctx.shadowBlur = 28;
+    ctx.fillStyle = inner;
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+
+    ctx.beginPath();
+    ctx.ellipse(x - r * 0.31, y - r * 0.38, r * 0.29, r * 0.16, -0.55, 0, Math.PI * 2);
+    ctx.fillStyle = 'rgba(255,255,255,0.76)';
+    ctx.fill();
+
+    const a = ball.angle;
+    for (let i = 0; i < 4; i++) {
+      const d = 34 + i * 13;
+      const dir = a + Math.PI + Math.sin(elapsed * 3.4 + i) * 0.32;
+      const sx = x + Math.cos(dir) * d;
+      const sy = y + Math.sin(dir) * d;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 2.9 - i * 0.45, 0, Math.PI * 2);
+      ctx.fillStyle = `hsla(${c},100%,85%,${0.55 - i * 0.1})`;
+      ctx.fill();
+    }
+  }
+
+  // UI marker colors intentionally track ~180 degrees AWAY from the ball hue.
+  // They are never read by the pixel detector: it samples mainCanvas only.
+  function traceColor(orbHue = currentHue(), alpha = 1) {
+    return `hsla(${(orbHue + 180) % 360},100%,69%,${alpha})`;
+  }
+  function drawDetectionBox(mx,my,r,label="PIXEL / DET") {
+    const radius = Math.max(25, Math.min(46, r + 14));
+    const c = traceColor();
+    overlayCtx.save();
+    overlayCtx.lineJoin = 'miter';
+    overlayCtx.strokeStyle = 'rgba(2,5,14,.95)';
+    overlayCtx.lineWidth = 6.5;
+    overlayCtx.strokeRect(mx-radius,my-radius, radius*2, radius*2);
+    overlayCtx.strokeStyle = c;
+    overlayCtx.lineWidth = 3;
+    overlayCtx.strokeRect(mx-radius,my-radius, radius*2, radius*2);
+    const l=12;
+    overlayCtx.lineWidth=4;
+    overlayCtx.beginPath();
+    for(const dx of [-1,1]) for (const dy of [-1,1]) {
+      const x=mx+dx*radius,y=my+dy*radius;
+      overlayCtx.moveTo(x-dx*l,y); overlayCtx.lineTo(x,y); overlayCtx.lineTo(x,y-dy*l);
+    }
+    overlayCtx.stroke();
+    overlayCtx.font='800 11px Inter, system-ui, sans-serif';
+    overlayCtx.fillStyle='rgba(2,8,19,.95)';
+    overlayCtx.fillRect(mx-radius,my-radius-26,102,22);
+    overlayCtx.fillStyle=c;
+    overlayCtx.fillText(label,mx-radius+6,my-radius-11);
+    overlayCtx.restore();
+  }
+  function drawWhiteEstimate(x,y) {
+    overlayCtx.save();
+    overlayCtx.lineWidth=6;overlayCtx.strokeStyle='rgba(1,6,13,.95)';
+    overlayCtx.strokeRect(x-9,y-9,18,18);
+    overlayCtx.strokeStyle='#f8fff9';overlayCtx.lineWidth=2.7;
+    overlayCtx.strokeRect(x-9,y-9,18,18);
+    overlayCtx.beginPath();overlayCtx.moveTo(x-14,y);overlayCtx.lineTo(x+14,y);
+    overlayCtx.moveTo(x,y-14);overlayCtx.lineTo(x,y+14);
+    overlayCtx.stroke();overlayCtx.restore();
+  }
+  function drawPredictionDiamond(x,y) {
+    const col = ((currentHue()+360)%360 > 13 && (currentHue()+360)%360 < 78) ? '#9b7dff' : '#ffcc46';
+    overlayCtx.save();
+    overlayCtx.beginPath();overlayCtx.moveTo(x,y-13);overlayCtx.lineTo(x+13,y);
+    overlayCtx.lineTo(x,y+13);overlayCtx.lineTo(x-13,y);overlayCtx.closePath();
+    overlayCtx.fillStyle='rgba(2,7,19,.85)';overlayCtx.fill();
+    overlayCtx.lineWidth=3.4;overlayCtx.strokeStyle=col;overlayCtx.stroke();
+    overlayCtx.fillStyle=col;overlayCtx.beginPath();overlayCtx.arc(x,y,3,0,Math.PI*2);overlayCtx.fill();
+    overlayCtx.restore();
+    return col;
+  }
+  function drawTrackingTail() {
+    if(!tracking || trackingTrace.length<2)return;
+    const end=trackingTrace.length - 1;
+    let start=0;
+    while(start<end && elapsed-trackingTrace[start].t>trackingTailSecs)start++;
+    // Thick dark edge separates the crisp tracker path from the soft colored orb tail.
+    overlayCtx.save();overlayCtx.lineCap='round';overlayCtx.lineJoin='round';
+    overlayCtx.beginPath();overlayCtx.moveTo(trackingTrace[start].x,trackingTrace[start].y);
+    for(let i=start+1;i<=end;i++) {
+      const a=trackingTrace[i-1],b=trackingTrace[i];
+      if(b.t-a.t>1.0){overlayCtx.moveTo(b.x,b.y);continue}
+      overlayCtx.lineTo(b.x,b.y);
+    }
+    overlayCtx.strokeStyle='rgba(2,5,13,.85)';overlayCtx.lineWidth=8;overlayCtx.stroke();
+    for(let i=start+1;i<=end;i++){
+      const a=trackingTrace[i-1],b=trackingTrace[i];
+      if(b.t-a.t>1.0)continue;
+      const fade=Math.max(.28,1-(elapsed-b.t)/trackingTailSecs*.72);
+      overlayCtx.strokeStyle=traceColor(b.h,fade);
+      overlayCtx.lineWidth=3.7;
+      overlayCtx.setLineDash([9,6]);
+      overlayCtx.beginPath();overlayCtx.moveTo(a.x,a.y);overlayCtx.lineTo(b.x,b.y);overlayCtx.stroke();
+      if(i%8===0){
+        overlayCtx.setLineDash([]);overlayCtx.strokeStyle='#07131d';overlayCtx.lineWidth=4;
+        overlayCtx.strokeRect(b.x-4,b.y-4,8,8);
+        overlayCtx.strokeStyle=traceColor(b.h,fade);overlayCtx.lineWidth=2;
+        overlayCtx.strokeRect(b.x-4,b.y-4,8,8);
+      }
+    }
+    overlayCtx.setLineDash([]);overlayCtx.restore();
+  }
+  function marker(x, y, color, r) {
+    overlayCtx.beginPath();
+    overlayCtx.arc(x, y, r, 0, Math.PI * 2);
+    overlayCtx.strokeStyle = color;
+    overlayCtx.lineWidth = 2.3;
+    overlayCtx.stroke();
+    overlayCtx.beginPath();
+    overlayCtx.moveTo(x - 6, y); overlayCtx.lineTo(x + 6, y);
+    overlayCtx.moveTo(x, y - 6); overlayCtx.lineTo(x, y + 6);
+    overlayCtx.stroke();
+  }
+
+  function drawTurnMarkers() {
+    overlayCtx.save();
+    for (const ev of turnEvents) {
+      const truth = getTruthAt(ev.t);
+      if (!truth) continue;
+      const age = elapsed - ev.t;
+      if (age > 3.6) continue;
+      const alpha = Math.max(0.15, 1 - age / 3.6);
+      overlayCtx.fillStyle = `rgba(255,97,120,${0.55 * alpha})`;
+      overlayCtx.strokeStyle = `rgba(255,97,120,${0.9 * alpha})`;
+      overlayCtx.lineWidth = 1.6;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(truth.x, truth.y - 20);
+      overlayCtx.lineTo(truth.x - 8, truth.y - 34);
+      overlayCtx.lineTo(truth.x + 8, truth.y - 34);
+      overlayCtx.closePath();
+      overlayCtx.fill();
+      overlayCtx.stroke();
+      overlayCtx.font = '700 11px Inter, system-ui, sans-serif';
+      overlayCtx.fillStyle = `rgba(255,214,214,${alpha})`;
+      overlayCtx.fillText(ev.kind, truth.x + 11, truth.y - 24);
+    }
+    overlayCtx.restore();
+  }
+
+  function drawTrackingOverlay() {
+    overlayCtx.clearRect(0, 0, w, h);
+    drawTurnMarkers();
+    drawTrackingTail();
+    if(extraBalls.length){
+      overlayCtx.save();
+      overlayCtx.font='800 11px Inter,system-ui';
+      overlayCtx.fillStyle='rgba(5,13,23,.82)';
+      overlayCtx.fillRect(ball.x+ball.radius+7,ball.y+ball.radius+8,76,20);
+      overlayCtx.fillStyle='#edfff8';
+      overlayCtx.fillText('#1 真实目标',ball.x+ball.radius+12,ball.y+ball.radius+22);
+      overlayCtx.restore();
+    }
+
+    if (!tracking || !trackData) return;
+    const d = trackData;
+    const sx = w / d.image_width;
+    const sy = h / d.image_height;
+    // Python multi-target tracker: each ID has an independent, crisp trail.
+    // This is distinct from the webpage's ground-truth ball numbers.
+    if (trackingMode === 'local' && Array.isArray(d.tracks)) {
+      const fresh = new Set();
+      for (const tr of d.tracks) {
+        if (!tr.confirmed) continue;
+        fresh.add(tr.id);
+        let trace = motTraces.get(tr.id);
+        if (!trace) { trace = []; motTraces.set(tr.id, trace); }
+        if (tr.visible) trace.push({x: tr.x*sx, y: tr.y*sy, t: elapsed});
+        while (trace.length && elapsed-trace[0].t > Math.min(trackingTailSecs, 20)) trace.shift();
+        const ink = `hsl(${(tr.id * 137.5 + 25)%360} 95% 71%)`;
+        overlayCtx.save();
+        overlayCtx.setLineDash([7, 5]);
+        overlayCtx.strokeStyle='rgba(0,0,0,.85)';
+        overlayCtx.lineWidth=5.4;
+        if (trace.length>1) {
+          overlayCtx.beginPath();overlayCtx.moveTo(trace[0].x,trace[0].y);
+          for (const pt of trace.slice(1)) overlayCtx.lineTo(pt.x,pt.y);
+          overlayCtx.stroke();
+          overlayCtx.strokeStyle=ink;overlayCtx.lineWidth=2.5;overlayCtx.stroke();
+        }
+        overlayCtx.setLineDash([]);
+        const x=tr.x*sx,y=tr.y*sy,r=Math.max(11,tr.radius*sx);
+        overlayCtx.strokeStyle='rgba(0,0,0,.95)';overlayCtx.lineWidth=5;
+        overlayCtx.strokeRect(x-r,y-r,2*r,2*r);
+        overlayCtx.strokeStyle=ink;overlayCtx.lineWidth=2.5;
+        overlayCtx.setLineDash(tr.visible?[]:[6,5]);
+        overlayCtx.strokeRect(x-r,y-r,2*r,2*r);
+        overlayCtx.setLineDash([]);
+        overlayCtx.fillStyle='rgba(3,9,17,.92)';
+        overlayCtx.fillRect(x-r,y-r-26,85,22);
+        overlayCtx.fillStyle=ink;overlayCtx.font='800 12px Inter,system-ui';
+        overlayCtx.fillText(`MOT #${tr.id}`,x-r+6,y-r-10);
+        if (Array.isArray(tr.predicted)) {
+          const fx=tr.predicted[0]*sx,fy=tr.predicted[1]*sy;
+          overlayCtx.strokeStyle=ink;overlayCtx.lineWidth=1.5;
+          overlayCtx.setLineDash([3,6]);
+          overlayCtx.beginPath();overlayCtx.moveTo(x,y);overlayCtx.lineTo(fx,fy);overlayCtx.stroke();
+          overlayCtx.setLineDash([]);
+        }
+        overlayCtx.restore();
+      }
+      for (const [id, trace] of motTraces) {
+        if (!fresh.has(id) && (!trace.length || elapsed-trace[trace.length-1].t > 1.2)) motTraces.delete(id);
+      }
+      // Do not draw the legacy single-target marker on top of multi-ID boxes.
+      // The legacy score panel still evaluates only the reference target #1.
+      overlayCtx.save();
+      overlayCtx.fillStyle='#d3fff2';overlayCtx.font='700 12px Inter,system-ui';
+      overlayCtx.fillText(`MOT: ${d.visible_track_count ?? 0} 个已确认可见轨迹 · ID 为算法估计，非真实球号`,24,h-124);
+      overlayCtx.restore();
+      return;
+    }
+    if (!d.estimate) return;
+    const age = Math.min(0.38, (performance.now() - trackSince) / 1000);
+    const [x, y, vx, vy, ax, ay] = d.estimate;
+    const px = (x + vx * age + 0.5 * ax * age * age) * sx;
+    const py = (y + vy * age + 0.5 * ay * age * age) * sy;
+
+    if (d.measurement) {
+      const [mx, my, rr] = d.measurement;
+      const detectorLabel=d.detector==='yolo' ? 'YOLO / DET' : d.detector==='demo' ? 'PIXEL / DET' : 'CV / DET';
+      drawDetectionBox(mx * sx,my * sy,rr * sx,detectorLabel);
+    }
+    drawWhiteEstimate(px,py);
+
+    if (d.future) {
+      const t = age + d.future_seconds;
+      const fx = (x + vx * t + 0.5 * ax * t * t) * sx;
+      const fy = (y + vy * t + 0.5 * ay * t * t) * sy;
+      overlayCtx.beginPath();
+      overlayCtx.moveTo(px, py);
+      overlayCtx.lineTo(fx, fy);
+      overlayCtx.strokeStyle = 'rgba(255,191,85,0.82)';
+      overlayCtx.lineWidth = 1.7;
+      overlayCtx.setLineDash([5, 6]);
+      overlayCtx.stroke();
+      overlayCtx.setLineDash([]);
+      const predColor=drawPredictionDiamond(fx,fy);
+      overlayCtx.font = '700 12px Inter, system-ui, sans-serif';
+      overlayCtx.fillStyle = predColor;
+      overlayCtx.fillText(`+${Math.round(d.future_seconds * 1000)} ms`, fx + 16, fy - 10);
+
+      const [, , a, b, c] = d.future;
+      const tr = a + c;
+      const disc = Math.sqrt(Math.max(0, (a - c) ** 2 + 4 * b * b));
+      const l1 = Math.max(0, (tr + disc) * 0.5);
+      const l2 = Math.max(0, (tr - disc) * 0.5);
+      if (l1 < 100000) {
+        overlayCtx.beginPath();
+        overlayCtx.ellipse(
+          fx, fy,
+          Math.min(200, 2 * Math.sqrt(l1) * sx),
+          Math.min(200, 2 * Math.sqrt(l2) * sy),
+          0.5 * Math.atan2(2 * b, a - c),
+          0, Math.PI * 2
+        );
+        overlayCtx.strokeStyle = 'rgba(255,184,74,0.45)';
+        overlayCtx.lineWidth = 1;
+        overlayCtx.stroke();
+      }
+    }
+
+    overlayCtx.font = '600 12px Inter, system-ui, sans-serif';
+    overlayCtx.fillStyle = '#c6fef1';
+    overlayCtx.fillText(`${d.mode} · ${d.inference_fps} FPS   |   反色框=检测 · 白方框=估计 · 菱形=预测 · 反色虚线=长尾`, 24, h - 124);
+  }
+
+  // Metrics are recorded ONCE per processed camera frame.  Ground truth is
+  // retained only in the webpage evaluator and is NEVER sent to the detector.
+  function upsertMetricPoint(key, value, t) {
+    let point = null;
+    for (let i = metricsHistory.length - 1; i >= 0; i--) {
+      if (Math.abs(metricsHistory[i].t - t) < 0.002) { point = metricsHistory[i]; break; }
+      if (metricsHistory[i].t < t - 0.002) break;
+    }
+    if (!point) {
+      point = {t, det:null, est:null, future:null};
+      metricsHistory.push(point);
+      metricsHistory.sort((a,b)=>a.t-b.t);
+    }
+    point[key] = value;
+    while (metricsHistory.length && elapsed - metricsHistory[0].t > HISTORY_CHART_SECONDS)
+      metricsHistory.shift();
+  }
+
+  function consumeTrackingResult(d, captureElapsed, captureTruth) {
+    if (!tracking) return;
+    aggregate.observations++;
+    if(d.measurement)aggregate.detections++;
+    if(d.estimate)aggregate.estimateValid++;
+    if(d.estimate && Number.isFinite(d.estimate[0]) && Number.isFinite(d.estimate[1]) && captureElapsed-lastTraceAt>=.07) {
+      trackingTrace.push({x:d.estimate[0]*w/d.image_width,y:d.estimate[1]*h/d.image_height,t:captureElapsed,h:currentHue()});
+      lastTraceAt=captureElapsed;
+      while(trackingTrace.length && elapsed-trackingTrace[0].t>trackingTailSecs) trackingTrace.shift();
+    }
+    const sx = w / d.image_width;
+    const sy = h / d.image_height;
+    let detError = null, estError = null;
+    if (d.measurement) {
+      const [mx, my] = d.measurement;
+      detError = Math.hypot(mx * sx - captureTruth.x, my * sy - captureTruth.y);
+      aggregate.lastDet = detError;
+      aggregate.detSqSum += detError*detError;
+      upsertMetricPoint('det', detError, captureElapsed);
+    } else aggregate.lastDet = null;
+    if (d.estimate) {
+      const [x, y] = d.estimate;
+      estError = Math.hypot(x * sx - captureTruth.x, y * sy - captureTruth.y);
+      aggregate.lastEst = estError;
+      aggregate.estCount++;
+      aggregate.estSqSum += estError ** 2;
+      upsertMetricPoint('est', estError, captureElapsed);
+    } else aggregate.lastEst = null;
+    updateTurnAnalytics(estError, captureElapsed);
+    if (d.estimate && d.future) {
+      aggregate.predictionTotal++;
+      const due = captureElapsed + d.future_seconds;
+      const item = { createdAt:captureElapsed, due, fx:d.future[0]*sx, fy:d.future[1]*sy };
+      if (due <= elapsed) {
+        const truth = getTruthAt(due);
+        if (truth) {
+          const err = Math.hypot(item.fx - truth.x, item.fy - truth.y);
+          aggregate.lastFuture = err;
+          aggregate.predCount++;aggregate.predSqSum+=err*err;
+          upsertMetricPoint('future', err, due);
+          updateTurnAnalytics(null, due, err);
+        }
+      } else {
+        pendingFutureEvals.push(item);
+        pendingFutureEvals.sort((a,b)=>a.due-b.due);
+      }
+    }
+    updateMetricBoxes();
+  }
+
+  function updateScoreboard(){
+    const n=aggregate.observations;
+    const predN=aggregate.predCount;
+    const recentTurn=turnEvents.filter(e=>e.peakEst!=null && elapsed-e.t>=.4);
+    if(n<20||predN<10||recentTurn.length<1){
+      $('gradeValue').textContent='--';
+      $('scorePeek').textContent='--/100';
+      $('gradeStatus').textContent=`采样中 · ${n}帧 / ${predN}次预测 / ${recentTurn.length}次事件`;
+      $('gradeFill').style.width='0%';
+      for(const id of ['gradeDetect','gradeEstimate','gradePredict','gradeTurn','gradeContinuity'])
+        $(id).textContent='-- / '+({gradeDetect:25,gradeEstimate:25,gradePredict:30,gradeTurn:15,gradeContinuity:5}[id]);
+      return;
+    }
+    const radius=ball.radius;
+    const hit=aggregate.detections/n;
+    const valid=aggregate.estimateValid/n;
+    const detRMSE=Math.sqrt(aggregate.detSqSum/Math.max(1,aggregate.detections));
+    const estRMSE=Math.sqrt(aggregate.estSqSum/Math.max(1,aggregate.estimateValid));
+    const predRMSE=Math.sqrt(aggregate.predSqSum/predN);
+    const predCoverage=Math.min(1,aggregate.predictionTotal/Math.max(1,n));
+    const turnPeak=recentTurn.reduce((s,e)=>s+e.peakEst,0)/recentTurn.length;
+    const recovered=recentTurn.filter(e=>e.recoveryTime!=null).length/recentTurn.length;
+    const parts={
+      gradeDetect:25*Math.exp(-detRMSE/(radius*2.0))*hit,
+      gradeEstimate:25*Math.exp(-estRMSE/(radius*2.5))*valid,
+      gradePredict:30*Math.exp(-predRMSE/(radius*3.0))*predCoverage,
+      gradeTurn:15*Math.exp(-turnPeak/(radius*4.0))*(.35+.65*recovered),
+      gradeContinuity:5*hit,
+    };
+    const total=clamp(Object.values(parts).reduce((s,v)=>s+v,0),0,100);
+    $('gradeValue').textContent=total.toFixed(1);
+    $('scorePeek').textContent=Math.round(total)+'/100';
+    const level=total>=90?'优秀':total>=75?'良好':total>=60?'及格':'待优化';
+    $('gradeStatus').textContent=`${level} / 100 · ${n} 帧`;
+    $('gradeFill').style.width=total+'%';
+    for(const [id,max] of Object.entries({gradeDetect:25,gradeEstimate:25,gradePredict:30,gradeTurn:15,gradeContinuity:5}))
+      $(id).textContent=`${parts[id].toFixed(1)} / ${max}`;
+    $('gradeExplanation').textContent=`目标 #1 · 检出率 ${(hit*100).toFixed(1)}% · 检测RMSE ${detRMSE.toFixed(1)}px · 估计RMSE ${estRMSE.toFixed(1)}px · 预测RMSE ${predRMSE.toFixed(1)}px；仅为该实验场景的自定义评分，不代表通用 YOLO 精度。`;
+  }
+
+  function updateMetricBoxes() {
+    const fmt = (v) => v == null || Number.isNaN(v) ? '-- px' : `${v.toFixed(1)} px`;
+    $('detErr').textContent = fmt(aggregate.lastDet);
+    $('estErr').textContent = fmt(aggregate.lastEst);
+    $('futureErr').textContent = fmt(aggregate.lastFuture);
+    $('rmse').textContent = aggregate.estCount ? Math.sqrt(aggregate.estSqSum / aggregate.estCount).toFixed(2) : '--';
+    $('recovery').textContent = aggregate.recoveryCount ? (aggregate.recoverySum / aggregate.recoveryCount).toFixed(2) + ' s' : '-- s';
+    updateScoreboard();
+
+    const lastEvent = turnEvents[0];
+    if (lastEvent) {
+      $('lastTurn').textContent = `${lastEvent.kind} · T${lastEvent.id}`;
+      const peak = lastEvent.peakEst != null ? `${lastEvent.peakEst.toFixed(1)} px` : '--';
+      const rec = lastEvent.recoveryTime != null ? `${lastEvent.recoveryTime.toFixed(2)} s` : '观察中';
+      $('lastTurnDetail').textContent = `峰值 ${peak} / 恢复 ${rec}`;
+    } else {
+      $('lastTurn').textContent = '未触发';
+      $('lastTurnDetail').textContent = '等待急转事件';
+    }
+
+    $('algoBadge').textContent = tracking ? (trackData ? (trackData.mode || '算法运行中') : '连接中…') : '等待连接算法';
+    $('analysisLive').textContent = tracking ? (trackData ? '算法在线' : '连接中') : '记录中';
+  }
+
+  function drawChart() {
+    const cw = chartCanvas.width;
+    const ch = chartCanvas.height;
+    chartCtx.clearRect(0, 0, cw, ch);
+
+    chartCtx.fillStyle = 'rgba(4,11,18,0.7)';
+    chartCtx.fillRect(0, 0, cw, ch);
+
+    const left = 38, right = cw - 8, top = 12, bottom = ch - 24;
+    const width = right - left, height = bottom - top;
+
+    let maxErr = 30;
+    for (const p of metricsHistory) {
+      for (const key of ['det', 'est', 'future']) {
+        if (p[key] != null) maxErr = Math.max(maxErr, p[key]);
+      }
+    }
+    maxErr = Math.max(30, Math.ceil(maxErr / 10) * 10);
+
+    chartCtx.strokeStyle = 'rgba(255,255,255,0.08)';
+    chartCtx.lineWidth = 1;
+    for (let i = 0; i <= 4; i++) {
+      const y = top + (height * i / 4);
+      chartCtx.beginPath();
+      chartCtx.moveTo(left, y);
+      chartCtx.lineTo(right, y);
+      chartCtx.stroke();
+      const val = (maxErr * (1 - i / 4)).toFixed(0);
+      chartCtx.fillStyle = 'rgba(182,209,206,0.72)';
+      chartCtx.font = '10px Inter, system-ui, sans-serif';
+      chartCtx.fillText(val, 7, y + 4);
+    }
+
+    chartCtx.strokeStyle = 'rgba(255,255,255,0.1)';
+    chartCtx.beginPath();
+    chartCtx.moveTo(left, bottom);
+    chartCtx.lineTo(right, bottom);
+    chartCtx.lineTo(right, top);
+    chartCtx.stroke();
+
+    const start = Math.max(0, elapsed - HISTORY_CHART_SECONDS);
+    const toX = (t) => left + ((t - start) / HISTORY_CHART_SECONDS) * width;
+    const toY = (v) => bottom - (clamp(v, 0, maxErr) / maxErr) * height;
+
+    for (let sec = 0; sec <= HISTORY_CHART_SECONDS; sec += 3) {
+      const t = start + sec;
+      const x = toX(t);
+      chartCtx.fillStyle = 'rgba(154,184,183,0.55)';
+      chartCtx.font = '10px Inter, system-ui, sans-serif';
+      chartCtx.fillText(`-${Math.round(HISTORY_CHART_SECONDS - sec)}s`, x - 10, ch - 8);
+    }
+
+    for (const ev of turnEvents) {
+      if (ev.t < start) continue;
+      const x = toX(ev.t);
+      chartCtx.beginPath();
+      chartCtx.moveTo(x, top);
+      chartCtx.lineTo(x, bottom);
+      chartCtx.strokeStyle = 'rgba(255,97,120,0.66)';
+      chartCtx.setLineDash([4, 4]);
+      chartCtx.stroke();
+      chartCtx.setLineDash([]);
+    }
+
+    function drawLine(key, color) {
+      let started = false;
+      chartCtx.beginPath();
+      for (const p of metricsHistory) {
+        if (p[key] == null) continue;
+        const x = toX(p.t), y = toY(p[key]);
+        if (!started) { chartCtx.moveTo(x, y); started = true; }
+        else chartCtx.lineTo(x, y);
+      }
+      chartCtx.strokeStyle = color;
+      chartCtx.lineWidth = 2.1;
+      chartCtx.stroke();
+    }
+
+    drawLine('det', '#ed70ef');
+    drawLine('est', '#f5fff6');
+    drawLine('future', '#ffb44a');
+  }
+
+  function updateEventsList() {
+    const root = $('eventsList');
+    const items = turnEvents.slice(0, 6);
+    if (!items.length) {
+      root.innerHTML = '<div class="empty-note">发生急转弯后，这里会记录峰值误差与恢复时间。</div>';
+      return;
+    }
+    root.innerHTML = items.map(ev => {
+      const peakEst = ev.peakEst != null ? ev.peakEst.toFixed(1) + ' px' : '--';
+      const peakFuture = ev.peakFuture != null ? ev.peakFuture.toFixed(1) + ' px' : '--';
+      const recovery = ev.recoveryTime != null ? ev.recoveryTime.toFixed(2) + ' s' : '观察中';
+      return `
+        <div class="event-row">
+          <div><b>T${ev.id}</b><br><span>${ev.kind}</span></div>
+          <div>
+            <small>估计峰值 ${peakEst}</small><br>
+            <small>未来峰值 ${peakFuture}</small>
+          </div>
+          <div class="tag">恢复 ${recovery}</div>
+        </div>
+      `;
+    }).join('');
+  }
+
+  function render() {
+    ctx.clearRect(0, 0, w, h);
+    drawStars();
+    drawTrail();
+    drawSecondaryBalls();
+    drawBall();
+    drawTrackingOverlay();
+    drawChart();
+
+    const remain = Math.max(0, CHANGE_INTERVAL - (elapsed - lastChange));
+    $('countdown').textContent = remain.toFixed(1) + ' s';
+    const m = Math.floor(elapsed / 60), s = Math.floor(elapsed % 60);
+    $('elapsed').textContent = String(m).padStart(2, '0') + ':' + String(s).padStart(2, '0');
+  }
+
+  function repairInvalidMotion() {
+    ball.x = w * 0.26;
+    ball.y = h * 0.42;
+    ball.angle = -0.55;
+    ball.turnRate = 0;
+    ball.targetTurn = 0.3;
+    ball.speedScale = 1;
+    ball.speedTarget = 1;
+    wander = 0;
+    history.length = 0;
+    targetPoint = null;
+    lastAngle = ball.angle;
+    planManeuver();
+  }
+
+  function frame(now) {
+    // requestAnimationFrame's FIRST timestamp can predate performance.now() at
+    // initialization. Negative dt -> sqrt(dt) = NaN -> invisible ball.
+    const dt = clamp((now - lastNow) / 1000, 0, 0.045);
+    lastNow = now;
+    try {
+      if (!paused && dt > 0) update(dt);
+      if (![ball.x, ball.y, ball.angle, ball.turnRate].every(Number.isFinite))
+        repairInvalidMotion();
+      render();
+      // In-page classical pixel detector + alpha-beta estimator, independent of Python.
+      if(trackingMode==='demo' && !paused && now-lastDemoAt>=105){
+        lastDemoAt=now;
+        runDemoFrame();
+      }
+      $('fallbackOrb').style.display = 'none';
+      $('renderAlert').style.display = 'none';
+      lastErrorMessage = '';
+    } catch (err) {
+      if (String(err) !== lastErrorMessage) console.error('动画已自动恢复，原始错误：', err);
+      lastErrorMessage = String(err);
+      $('fallbackOrb').style.display = 'block';
+      $('renderAlert').style.display = 'block';
+      $('renderAlert').textContent = '动画发生异常，已启动备用小球。请把 Console 的红色错误发来：' + lastErrorMessage;
+      repairInvalidMotion();
+    } finally {
+      requestAnimationFrame(frame);
+    }
+  }
+
+  function setPaused(next) {
+    paused = next;
+    $('toggle').textContent = next ? '继续运动' : '暂停运动';
+  }
+
+  function clearTails() {
+    history.length = 0;
+    for(const b of extraBalls)b.history.length=0;
+    trackingTrace.length = 0;
+    motTraces.clear();
+    // Keep the current ball position, algorithm state, and analytics intact.
+    // Re-seed the visible orb trail from the current position so the page never looks broken.
+    history.push({ x: ball.x, y: ball.y, h: currentHue(), t: elapsed });
+    $('clearTail').textContent = '已清除尾迹';
+    clearTimeout(clearTails._timer);
+    clearTails._timer = setTimeout(() => {
+      $('clearTail').textContent = '一键清尾';
+    }, 900);
+  }
+
+  // Demo algorithm: connected-component detection of near-white spherical core
+  // in rendered canvas PIXELS.  No ball state or "truth" is read in this detector.
+  // Ground-truth coordinates are used only AFTER inference to evaluate error.
+  function detectOrbPixels() {
+    const targetW=Math.min(820,Math.max(480,Math.round(w*.57)));
+    const targetH=Math.max(1,Math.round(targetW*h/w));
+    if(demoCanvas.width!==targetW || demoCanvas.height!==targetH){
+      demoCanvas.width=targetW;demoCanvas.height=targetH;
+    }
+    demoCtx.clearRect(0,0,targetW,targetH);
+    demoCtx.drawImage(mainCanvas,0,0,targetW,targetH);
+    const data=demoCtx.getImageData(0,0,targetW,targetH).data;
+    const N=targetW*targetH;
+    const mask=new Uint8Array(N);
+    for(let j=0,k=0;j<N;j++,k+=4){
+      const r=data[k],g=data[k+1],b=data[k+2];
+      const mn=Math.min(r,g,b),mx=Math.max(r,g,b);
+      if(mn>=212 && mx-mn<49)mask[j]=1;
+    }
+    const seen=new Uint8Array(N);
+    const queue=new Int32Array(N);
+    let best=null, bestScore=-1e9;
+    const hasPrev=demoState.ready && demoState.lost<.95;
+    const wantedX=(demoState.x+demoState.vx*.1)*targetW/w;
+    const wantedY=(demoState.y+demoState.vy*.1)*targetH/h;
+    for(let idx=0;idx<N;idx++){
+      if(!mask[idx]||seen[idx])continue;
+      let head=0,tail=1;
+      queue[0]=idx;seen[idx]=1;
+      let minX=targetW,minY=targetH,maxX=0,maxY=0,sumX=0,sumY=0;
+      while(head<tail){
+        const pos=queue[head++];
+        const x=pos%targetW,y=(pos/targetW)|0;
+        minX=Math.min(minX,x);maxX=Math.max(maxX,x);
+        minY=Math.min(minY,y);maxY=Math.max(maxY,y);
+        sumX+=x;sumY+=y;
+        // 4-neighbor connected components (fine for antialiased bright core).
+        if(x>0 && mask[pos-1] && !seen[pos-1]) {seen[pos-1]=1;queue[tail++]=pos-1;}
+        if(x+1<targetW && mask[pos+1] && !seen[pos+1]) {seen[pos+1]=1;queue[tail++]=pos+1;}
+        if(y>0 && mask[pos-targetW] && !seen[pos-targetW]) {seen[pos-targetW]=1;queue[tail++]=pos-targetW;}
+        if(y+1<targetH && mask[pos+targetW] && !seen[pos+targetW]) {seen[pos+targetW]=1;queue[tail++]=pos+targetW;}
+      }
+      const ww=maxX-minX+1,hh=maxY-minY+1,area=tail;
+      if(area<10||area>1350||ww<4||hh<4||ww/hh<.5||ww/hh>2)continue;
+      const cx=sumX/area,cy=sumY/area;
+      const distance=hasPrev?Math.hypot(cx-wantedX,cy-wantedY):0;
+      // Use a distance gate only after the tracker has initialized.
+      if(hasPrev && distance>100)continue;
+      const score=area - (hasPrev ? distance*.6 : 0);
+      if(score>bestScore){bestScore=score;best={x:cx*w/targetW,y:cy*h/targetH,
+        r:Math.max(12,Math.sqrt(area/Math.PI)*w/targetW*2.1),score:clamp(area/90,.2,1)};}
+    }
+    return best;
+  }
+
+  function runDemoFrame() {
+    const capturedAt=elapsed;
+    // The detector never reads ball.x or ball.y.  They are captured separately
+    // by the EVALUATION layer, after pixel processing has finished.
+    const measurement=detectOrbPixels();
+    const captureTruth={x:ball.x,y:ball.y};
+    const state=demoState;
+    const dt=state.frames?clamp(capturedAt-state.t,.025,.45):.1;
+    state.t=capturedAt;
+    state.frames++;
+    let filtered=null;
+    if(measurement){
+      if(!state.ready||state.lost>1.5){
+        state.x=measurement.x;state.y=measurement.y;
+        state.vx=0;state.vy=0;state.ready=true;
+      }else{
+        const xp=state.x+state.vx*dt;
+        const yp=state.y+state.vy*dt;
+        const rx=measurement.x-xp,ry=measurement.y-yp;
+        const alpha=.75,beta=.19;
+        state.x=xp+alpha*rx;state.y=yp+alpha*ry;
+        state.vx=clamp(state.vx+beta*rx/dt,-2200,2200);
+        state.vy=clamp(state.vy+beta*ry/dt,-2200,2200);
+      }
+      state.lost=0;
+    }else if(state.ready){
+      state.x+=state.vx*dt;state.y+=state.vy*dt;
+      state.lost+=dt;
+      if(state.lost>1.5)state.ready=false;
+    }
+    if(state.ready) filtered=[state.x,state.y,state.vx,state.vy,0,0];
+    const report={
+      ok:true,frame:state.frames,mode:'像素演示 · αβ（非YOLO）',detector:'demo',
+      inference_fps:Math.round(10/dt)/10,image_width:w,image_height:h,
+      future_seconds:.35,
+      measurement:measurement?[measurement.x,measurement.y,measurement.r,measurement.score]:null,
+      estimate:filtered,
+      future:filtered?[state.x+state.vx*.35,state.y+state.vy*.35,1400,0,1400]:null,
+    };
+    trackData=report;trackSince=performance.now();
+    consumeTrackingResult(report,capturedAt,captureTruth);
+  }
+
+  function resetTrackingStats() {
+    motTraces.clear();
+    trackingTrace.length=0;lastTraceAt=-Infinity;
+    pendingFutureEvals.length=0;metricsHistory.length=0;
+    aggregate.lastDet=null;aggregate.lastEst=null;aggregate.lastFuture=null;
+    aggregate.estCount=0;aggregate.estSqSum=0;
+    aggregate.observations=0;aggregate.detections=0;aggregate.detSqSum=0;
+    aggregate.estimateValid=0;aggregate.predictionTotal=0;aggregate.predSqSum=0;aggregate.predCount=0;
+    $('gradeExplanation').textContent='评分仅评估 #1 号球。先收集至少 20 帧、10 次到期预测及 1 次变向/碰撞事件；换球数量时自动重置统计。';
+    aggregate.recoveryCount=0;aggregate.recoverySum=0;
+    for(const ev of turnEvents){ev.peakEst=null;ev.peakFuture=null;ev.recoveryTime=null;ev.baseline=null;ev.stableSince=null;}
+    updateMetricBoxes();
+  }
+  function stopTracking() {
+    motTraces.clear();
+    tracking=false;trackingMode=null;trackData=null;
+    $('track').textContent='连接本机算法';
+    $('demoTrack').textContent='开始演示追踪';
+    $('demoTrack').setAttribute('aria-pressed','false');
+  }
+  function startDemo() {
+    stopTracking();resetTrackingStats();
+    demoState={ready:false,x:0,y:0,vx:0,vy:0,t:0,lost:0,frames:0};
+    trackingMode='demo';tracking=true;lastDemoAt=-Infinity;
+    $('demoTrack').textContent='演示追踪中 · 停止';
+    $('demoTrack').setAttribute('aria-pressed','true');
+    $('algoBadge').textContent='像素演示 · αβ';
+  }
+  function toggleDemo() {
+    if(trackingMode==='demo') {stopTracking();resetTrackingStats();}
+    else startDemo();
+  }
+
+  const trackingSession = (globalThis.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('tab_' + Math.random().toString(36).slice(2) + Date.now().toString(36));
+  async function sendVisualFrame() {
+    if (!tracking || trackingMode!=='local' || pendingRequest) return;
+    pendingRequest = true;
+    try {
+      if (document.hidden) { setTimeout(sendVisualFrame,350); return; }
+      const captureAt=performance.now();
+      const captureElapsed=elapsed;
+      const captureTruth={x:ball.x,y:ball.y};
+      const blob=await new Promise(resolve=>mainCanvas.toBlob(resolve,'image/jpeg',.82));
+      if(!blob)throw new Error('无法采集画面');
+      const endpoint=location.pathname.startsWith('/play/balls') ? '/play/balls/frame' : (location.hostname==='127.0.0.1'&&location.port==='8765'?'/frame':'http://127.0.0.1:8765/frame');
+      const result=await fetch(endpoint,{method:'POST',body:blob,headers:{'Content-Type':'image/jpeg','X-Tracking-Session':trackingSession},cache:'no-store'});
+      if(!result.ok)throw new Error('本机服务返回 '+result.status);
+      const response=await result.json();
+      if(trackingMode!=='local')return;
+      trackData=response;trackSince=captureAt;
+      consumeTrackingResult(response,captureElapsed,captureTruth);
+      $('track').textContent=response.detector==='yolo'?'YOLO 本地追踪中':'OpenCV 本地追踪中';
+    }catch(err){
+      if(trackingMode!=='local')return;
+      console.warn('本机算法连接失败：游戏大厅请先运行 ./scripts/install-ball-tracker.sh，重启 games；独立实验室请运行 ./start.sh',err);
+      stopTracking();$('track').textContent='连接失败 · 重试';
+      $('algoBadge').textContent='本机连接失败';
+    }finally{
+      pendingRequest=false;
+      if(trackingMode==='local'&&tracking)setTimeout(sendVisualFrame,100);
+    }
+  }
+
+  function toggleTracking() {
+    if(trackingMode==='local') {stopTracking();resetTrackingStats();return;}
+    stopTracking();resetTrackingStats();
+    trackingMode='local';tracking=true;
+    $('track').textContent='连接中…';
+    sendVisualFrame();
+  }
+
+  async function toggleFullscreen() {
+    try {
+      if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
+      else await document.exitFullscreen();
+    } catch (err) {
+      console.warn('全屏切换失败', err);
+    }
+  }
+
+  $('toggle').addEventListener('click', () => setPaused(!paused));
+  $('recolor').addEventListener('click', chooseNextColor);
+  $('clearTail').addEventListener('click', clearTails);
+  $('addBall').addEventListener('click',()=>spawnBall());
+  $('collisionChallenge').addEventListener('click',()=>spawnBall(true));
+  $('removeBall').addEventListener('click',removeBall);
+  $('resetScore').addEventListener('click',resetTrackingStats);
+  $('restitution').addEventListener('input',e=>{
+    restitution=Number(e.target.value);
+    $('restitutionLabel').textContent=restitution.toFixed(2);
+    setRangeVisual(e.target);
+  });
+  $('mode').addEventListener('click', () => {
+    modeIndex = (modeIndex + 1) % modes.length;
+    $('mode').textContent = '轨迹：' + modes[modeIndex];
+    planManeuver(true);
+  });
+  $('track').addEventListener('click', toggleTracking);
+  $('demoTrack').addEventListener('click', toggleDemo);
+  $('trackTail').addEventListener('input', e=>{trackingTailSecs=Number(e.target.value);$('trackTailLabel').textContent=trackingTailSecs+' 秒';setRangeVisual(e.target)});
+  $('focus').addEventListener('click', () => document.body.classList.toggle('focus-mode'));
+  $('fullscreen').addEventListener('click', toggleFullscreen);
+  $('speed').addEventListener('input', (e) => {
+    speedFactor = Number(e.target.value);
+    $('speedLabel').textContent = speedFactor.toFixed(1) + '×';
+    setRangeVisual(e.target);
+  });
+  $('tail').addEventListener('input', (e) => {
+    tailSecs = Number(e.target.value);
+    $('tailLabel').textContent = tailSecs + ' 秒';
+    setRangeVisual(e.target);
+  });
+
+  mainCanvas.addEventListener('pointerdown', (e) => {
+    targetPoint = { x: e.clientX, y: e.clientY, t: elapsed };
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (e.target instanceof HTMLInputElement) return;
+    const k = e.key.toLowerCase();
+    if (e.code === 'Space') { e.preventDefault(); setPaused(!paused); }
+    else if (k === 'f') toggleFullscreen();
+    else if (k === 'r') chooseNextColor();
+    else if (k === 'h') document.body.classList.toggle('focus-mode');
+    else if (k === 'm') $('mode').click();
+    else if (k === 't') toggleTracking();
+    else if (k === 'd') toggleDemo();
+    else if (k === 'c') clearTails();
+    else if (k === '+' || k === '=') spawnBall();
+    else if (k === '-') removeBall();
+    else if (k === 'e') setAnalysisOpen(!$('debugPanel').classList.contains('is-open'));
+    else if (k === 'escape' && $('debugPanel').classList.contains('is-open')) setAnalysisOpen(false, true);
+  });
+
+  for (const el of document.querySelectorAll('input[type=range]')) setRangeVisual(el);
+  updateEventsList();
+  resize();
+  refreshPhysicsWidget();
+  planManeuver(true);
+  window.addEventListener('resize', resize);
+  lastAngle = ball.angle;
+  // Demo is enabled immediately: users see live tracking without running Python.
+  startDemo();
+  // Draw the stationary ball immediately, before the first animation callback.
+  // This also guarantees a visible starting frame when the browser is throttled.
+  render();
+  $('fallbackOrb').style.display = 'none';
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>

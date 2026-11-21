@@ -1,0 +1,5 @@
+numpy>=1.26,<3
+opencv-python>=4.8
+mss>=10.0
+ultralytics>=8.3
+scipy>=1.11,<2

@@ -1,0 +1,28 @@
+{
+  "name": "go-online",
+  "version": "4.5.1",
+  "private": true,
+  "description": "50 Go lessons, interactive methodology and real heuristic algorithm trace lab, plus multiplayer",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "concurrently -k -n SERVER,CLIENT -c green,blue \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "npm run dev -w server",
+    "dev:client": "npm run dev -w client",
+    "build": "npm run typecheck -w client && npm run build -w client",
+    "start": "npm run start -w server",
+    "test": "node --test tests/*.test.js",
+    "lan": "npm run build && npm start",
+    "check": "npm test"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  },
+  "engines": {
+    "node": ">=20.0.0",
+    "npm": ">=10.0.0"
+  },
+  "type": "module"
+}

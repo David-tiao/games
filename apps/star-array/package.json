@@ -1,0 +1,13 @@
+{
+  "name": "star-array",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Star Array Resonance - mathematical puzzle prototype",
+  "scripts": {
+    "start": "node server/index.js",
+    "test": "node --test tests/*.test.js",
+    "check": "node --check server/index.js && node --check shared/math.js && node --check shared/levels.js && node --check client/app.js"
+  },
+  "engines": { "node": ">=20" }
+}

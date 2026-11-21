@@ -1,0 +1,48 @@
+# Logs and runtime data
+*.log
+data/migration-logs/
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+**/dist/
+build/
+**/build/
+
+# Python environments and caches
+.venv/
+**/.venv/
+__pycache__/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+**/.pytest_cache/
+
+# Local configuration and secrets (keep examples)
+.env
+.env.*
+**/.env
+**/.env.*
+!.env.example
+!**/.env.example
+
+# Runtime account data (never publish user accounts)
+apps/*/server/data/*
+!apps/*/server/data/.gitkeep
+
+# Optional model weights / training output
+*.pt
+*.onnx
+*.pth
+*.pkl
+runs/
+**/runs/
+datasets/
+**/datasets/
+
+# OS files
+.DS_Store
+Thumbs.db

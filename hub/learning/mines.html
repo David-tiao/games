@@ -1,0 +1,258 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>扫雷 · 逻辑与算法学院</title>
+<style>
+  :root { color-scheme: light; --bg:#f4f7fb; --ink:#172b49; --muted:#65758a; --blue:#2970e6; --line:#dce5f1; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; }
+  #minesweeper-app { min-height:100vh; display:flex; justify-content:center; padding:24px 12px; }
+  .game { width:min(100%,1020px); }
+  .top { text-align:center; margin-bottom:18px; }
+  h1 { font-size:clamp(25px,5vw,34px); margin:0 0 6px; letter-spacing:.04em; }
+  .subtitle { color:var(--muted); font-size:13px; margin:0; }
+  .panel { padding:clamp(14px,3vw,22px); border:1px solid var(--line); border-radius:20px; background:#fff; box-shadow:0 13px 36px #1c3f7010; }
+  .toolbar { display:flex; gap:12px; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-bottom:15px; }
+  .levels { display:flex; flex-wrap:wrap; gap:7px; }
+  button { font:inherit; cursor:pointer; }
+  .level { padding:9px 13px; border:1px solid var(--line); border-radius:10px; background:#fff; color:#456078; font-size:13px; font-weight:700; }
+  .level[aria-pressed="true"] { background:#e6f0ff; color:#1253b7; border-color:#a9c9ff; }
+  .new { background:#1b63cf; color:#fff; border:0; padding:10px 15px; border-radius:10px; font-weight:700; font-size:13px; }
+  .new:hover { background:#114fae; }
+  .hud { display:flex; gap:10px; justify-content:space-between; align-items:center; border:1px solid var(--line); background:#f8faff; padding:9px 13px; border-radius:12px; }
+  .metric { min-width:80px; }
+  .metric-label { color:var(--muted); font-size:11px; display:block; margin-bottom:2px; }
+  .metric-value { font-variant-numeric:tabular-nums; font-size:22px; font-weight:800; letter-spacing:.03em; }
+  .face { min-width:48px; min-height:45px; border-radius:12px; border:1px solid #d1dff0; background:white; font-size:27px; line-height:1; }
+  .message { margin:12px 0; font-weight:700; font-size:13px; color:#496785; min-height:19px; text-align:center; }
+  .board-scroller { width:100%; overflow:auto; padding:2px 1px 7px; text-align:center; }
+  #board { --cell:32px; display:grid; grid-template-columns:repeat(var(--cols),var(--cell)); width:max-content; margin:0 auto; gap:3px; padding:8px; border:1px solid #d7e4f3; background:#eaf0f9; border-radius:12px; user-select:none; -webkit-user-select:none; touch-action:pan-x pan-y; }
+  .cell { display:flex; justify-content:center; align-items:center; width:var(--cell); height:var(--cell); padding:0; border:0; border-radius:6px; background:linear-gradient(145deg,#fff,#e4edf9); box-shadow:0 2px 0 #bccde4; font-size:19px; font-weight:900; line-height:1; color:#183b74; -webkit-tap-highlight-color:transparent; }
+  .cell:not(.revealed):hover { background:#d2e4fe; }
+  .cell:focus-visible { outline:3px solid #2970e6; outline-offset:0; }
+  .cell.revealed { background:#fff; box-shadow:inset 0 0 0 1px #dce5f0; cursor:default; }
+  .cell.flagged { color:#de4661; background:#fff0f3; }
+  .cell.mine { background:#ffe6e6; }
+  .cell.exploded { background:#f77777; }
+  .cell.wrong { background:#fff0ec; }
+  .n1 { color:#2770db; }.n2 { color:#2e995e; }.n3 { color:#d44a4a; }.n4 { color:#6b46c8; }
+  .n5 { color:#ad5925; }.n6 { color:#139fa1; }.n7 { color:#39445e; }.n8 { color:#7c889a; }
+  .bottom { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:9px; margin-top:14px; }
+  .tip { font-size:12px; color:var(--muted); line-height:1.6; }
+  .mode { border:1px solid #becfe6; background:#f5f8fe; color:#3d5472; border-radius:10px; padding:10px 13px; font-size:12px; font-weight:800; }
+  .mode[aria-pressed="true"] { background:#fff1d7; color:#956100; border-color:#f6c66a; }
+  @media(max-width:600px){ #minesweeper-app{padding:14px 8px} .panel{padding:12px 8px} .level{padding:8px 10px} #board{--cell:29px;gap:2px;padding:5px} .cell{border-radius:5px;font-size:17px}.metric{min-width:60px}.metric-value{font-size:20px} }
+
+#minesweeper-app{align-items:start;gap:18px;max-width:1480px;margin:auto}
+#minesweeper-app .game{flex:1;min-width:0;max-width:980px}
+.edu-panel{width:292px;flex:none;position:sticky;top:14px;max-height:calc(100vh - 28px);overflow:auto;background:#fff;border:1px solid var(--line);padding:18px;border-radius:18px;box-shadow:0 13px 36px #1c3f7010}
+.edu-head small{font-size:10px;letter-spacing:1.4px;color:#3973bd}.edu-head h2{font-size:19px;color:#17385f;margin:7px 0}.edu-head p,.edu-panel p{font-size:12px;line-height:1.8;color:#667f9d}.edu-toolbar{display:grid;gap:8px;margin:12px 0}.edu-toolbar button{border:1px solid #b8cef0;border-radius:9px;padding:10px;background:#eef6ff;color:#214d8d;font-size:12px;font-weight:700}.edu-toolbar button:last-child{background:#265eae;color:white}.edu-analysis{background:#edf5fc;padding:12px;border-radius:10px;font-size:12px;line-height:1.7;color:#204d79}.edu-analysis b{font-size:12px;display:block;margin-bottom:8px}.edu-analysis div{max-height:145px;overflow:auto;color:#59718a}.edu-panel h3{font-size:13px;color:#244f84;margin:20px 0 10px}.edu-lesson{width:100%;display:block;text-align:left;border:1px solid #d9e5f2;color:#365c82;background:#f8fbff;border-radius:8px;padding:9px;margin-bottom:5px;font-size:12px;line-height:1.5}.edu-lesson.active{border-color:#4e86cf;background:#e4f0ff}.edu-lesson small{display:block;color:#647d97;margin-top:3px}.cell.safehint{box-shadow:0 0 0 3px #2ec3a7 inset!important;background:#dafcf3!important}
+@media(max-width:850px){#minesweeper-app{display:flex;flex-direction:column}.edu-panel{width:100%;max-height:none;position:static}#minesweeper-app .game{width:100%}}
+
+/* V1.1 fullscreen-first minesweeper. */
+html,body{height:100%;overflow:hidden}
+#minesweeper-app{max-width:none;width:100%;height:100dvh;min-height:0;overflow:auto;display:flex;align-items:stretch;justify-content:center;padding:6px 14px 50px}
+#minesweeper-app .game{max-width:none;width:100%;height:100%;min-width:0;display:flex;flex-direction:column;align-items:center}
+#minesweeper-app .top{flex:none;margin:0 0 6px}
+#minesweeper-app .top h1{font-size:21px;margin:0}
+#minesweeper-app .top .subtitle{font-size:11px}
+#minesweeper-app .panel{width:100%;max-width:none;min-height:0;flex:1;padding:10px;border-radius:14px;display:flex;flex-direction:column;align-items:stretch}
+#minesweeper-app .toolbar{flex:none;margin-bottom:8px}
+#minesweeper-app .hud{flex:none;padding:6px 12px}
+#minesweeper-app .message{margin:4px 0;font-size:11px}
+#minesweeper-app .board-scroller{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:2px;overflow:auto}
+#minesweeper-app #board{margin:auto;flex:none;max-height:none}
+#minesweeper-app .bottom{flex:none;margin-top:6px}
+#minesweeper-app .edu-panel{display:block;position:fixed;z-index:30;top:10px;right:10px;bottom:58px;max-height:none;overflow:auto;width:min(350px,92vw);border-radius:16px;transform:translateX(calc(100% + 22px));visibility:hidden;transition:transform .2s,visibility .2s;box-shadow:0 20px 80px #0006}
+#minesweeper-app .edu-panel.edu-visible{transform:translateX(0);visibility:visible}
+#mine-lab-open{position:fixed;z-index:25;right:14px;top:10px;border:1px solid #aac3e5;border-radius:99px;padding:10px 14px;font-size:12px;font-weight:800;background:#1d3d65;color:#f3dfaa;box-shadow:0 8px 30px #0005}
+/* V1.3 custom mines: compact and usable without giving up full-screen board space. */
+#minesweeper-app .mine-custom{display:flex;align-items:center;gap:7px;flex-wrap:wrap;padding:5px 9px;border:1px solid #cbd9ec;border-radius:11px;background:#f3f7fd;color:#254768}
+#minesweeper-app .mine-custom label{white-space:nowrap;font-weight:800;font-size:12px}
+#mine-count{width:71px;min-width:60px;padding:7px 6px;border:1px solid #a8bfdf;border-radius:7px;background:white;color:#183b63;font:inherit;font-size:14px;font-variant-numeric:tabular-nums}
+#mine-count[aria-invalid="true"]{border-color:#d85357;outline:2px solid #eab0b0}
+#minesweeper-app .mine-range{color:#647d96;font-size:11px;white-space:nowrap}
+#minesweeper-app .mine-apply{padding:8px 11px;border:1px solid #255ca6;background:#24599f;color:#fff;border-radius:8px;font-size:12px;font-weight:800}
+#minesweeper-app .mine-apply:hover{background:#16447f}
+@media(max-width:540px){#minesweeper-app .mine-custom{width:100%;gap:5px;padding:4px 6px}#minesweeper-app .mine-apply{padding:7px 9px}#mine-count{width:66px;padding:6px}#minesweeper-app .toolbar{margin-right:0;padding-right:0}#minesweeper-app .levels{max-width:calc(100% - 72px)}}
+
+@media(max-width:850px){#minesweeper-app{flex-direction:column;padding:7px 7px 52px}#minesweeper-app .game{width:100%;height:100%}#minesweeper-app .edu-panel{position:fixed;top:6px;bottom:54px;right:6px;width:min(350px,90vw);max-height:none}}
+@media(max-width:540px){#minesweeper-app .top{display:none}#minesweeper-app .panel{padding:6px 3px}#minesweeper-app .level{font-size:11px;padding:6px}#minesweeper-app .toolbar{margin-right:72px;gap:4px}#minesweeper-app .bottom .tip{display:none}#mine-lab-open{right:5px;top:5px;padding:9px 6px;font-size:10px}}
+</style>
+</head>
+<body>
+<button id="mine-lab-open" type="button" aria-expanded="false">∑ 逻辑老师</button>
+<div id="minesweeper-app">
+ <main class="game">
+  <header class="top"><h1>💣 扫雷</h1><p class="subtitle">避开地雷，揭开所有安全方块！</p></header>
+  <section class="panel" aria-label="扫雷游戏">
+   <div class="toolbar">
+    <div class="levels" role="group" aria-label="选择难度">
+     <button type="button" class="level" data-level="easy" aria-pressed="true">初级 9×9</button>
+     <button type="button" class="level" data-level="medium" aria-pressed="false">中级 16×16</button>
+     <button type="button" class="level" data-level="hard" aria-pressed="false">高级 30×16</button>
+    </div>
+    <div class="mine-custom" role="group" aria-label="自定义地雷数量">
+      <label for="mine-count" id="mine-count-label">💣 地雷数</label>
+      <input id="mine-count" type="number" min="1" max="72" step="1" value="10" inputmode="numeric" aria-describedby="mine-range" />
+      <span id="mine-range" class="mine-range">1–72</span>
+      <button type="button" id="apply-mines" class="mine-apply">应用并开新局</button>
+    </div>
+    <button type="button" id="new-game" class="new">↻ 重新开始</button>
+   </div>
+   <div class="hud">
+    <div class="metric"><span class="metric-label">剩余地雷</span><span class="metric-value" id="mines-left">010</span></div>
+    <button type="button" id="face" class="face" title="重新开始" aria-label="重新开始">🙂</button>
+    <div class="metric" style="text-align:right"><span class="metric-label">用时（秒）</span><span class="metric-value" id="time">000</span></div>
+   </div>
+   <p class="message" id="message" role="status" aria-live="polite">点击任意方块开始，首次点击不会踩雷。</p>
+   <div class="board-scroller"><div id="board" role="grid" aria-label="扫雷棋盘"></div></div>
+   <div class="bottom"><span class="tip">电脑：左键翻开，右键插旗。手机：长按插旗，或开启插旗模式。</span><button type="button" class="mode" id="flag-mode" aria-pressed="false">🚩 插旗模式：关</button></div>
+  </section>
+ </main>
+ <aside class="edu-panel" aria-label="AI Logic Academy">
+   <button id="mine-lab-close" type="button" aria-label="Close" style="float:right;border:1px solid #aac2e1;border-radius:9px;padding:6px 10px;background:#edf3fa;color:#194373">✕</button><div class="edu-head"><small>MINESWEEPER ACADEMY</small><h2 id="edu-title">扫雷 · 逻辑研究所</h2><p id="edu-intro">从数字约束推导必然安全的位置。AI 只读取你已翻开的数字和旗帜，不偷看地雷。</p></div>
+   <div class="edu-toolbar"><button id="edu-lang">中文 / EN</button><button id="edu-hint">✧ AI 逻辑提示</button><button id="edu-auto">◈ 翻开确定安全格</button></div>
+   <div class="edu-analysis"><b id="edu-result">点击数字方块后，再让 AI 计算。</b><div id="edu-equations"></div></div>
+   <h3 id="edu-lessons-heading">系统课程 · 12 节</h3><div id="edu-lessons"></div>
+   <p id="edu-disclaimer">AI 不会偷看未揭开的地雷。没有逻辑必然解时，明确告知可能需要猜测。</p>
+ </aside>
+</div>
+<script type="module">
+import { infer } from '/learn/assets/mines-ai.js';
+import { LEVELS, maxMines, validateMineCount, generateMinePositions } from '/learn/assets/mine-config.js';
+(() => {
+'use strict';
+const root=document.getElementById('minesweeper-app');
+const boardEl=root.querySelector('#board');
+const minesEl=root.querySelector('#mines-left');
+const timeEl=root.querySelector('#time');
+const messageEl=root.querySelector('#message');
+const faceEl=root.querySelector('#face');
+const flagModeEl=root.querySelector('#flag-mode');
+const levels=LEVELS;
+const mineCountInput=root.querySelector('#mine-count');
+const mineRangeEl=root.querySelector('#mine-range');
+const mineCountKey='game-universe-mines-counts-v1';
+function loadMinePreferences(){
+  try{const obj=JSON.parse(localStorage.getItem(mineCountKey)||'{}');return obj&&typeof obj==='object'&&!Array.isArray(obj)?obj:{};}
+  catch{return {};}
+}
+const minePreferences=loadMinePreferences();
+function levelSettings(name){
+  const base=levels[name];
+  const preferred=validateMineCount(minePreferences[name],base.rows,base.cols);
+  return {...base,mines:preferred.ok?preferred.value:base.mines};
+}
+function rememberMineCount(name,mines){
+  minePreferences[name]=mines;
+  try{localStorage.setItem(mineCountKey,JSON.stringify(minePreferences));}catch{/* Storage is optional. */}
+}
+let level='easy',settings=levelSettings(level),cells=[],started=false,ended=false,opened=0,flags=0,seconds=0,timer=null,flagMode=false,exploded=-1;
+let longPressTimer=null,longPressIndex=-1,suppressClickIndex=-1,startPointer=null;
+let hintIndex=-1,eduLang='zh',activeLesson=0,lastInference=null;
+const lessons=[
+ ['数字的含义','Clue Numbers','数字表示周围八格内的雷数。','A clue is the mine count among its eight neighbors.'],
+ ['插旗是一种假设','Flagging','旗帜由玩家放置，AI 以旗帜为约束；插错旗会干扰推理。','Flags are assumptions; wrong flags corrupt deductions.'],
+ ['零约束','Zero Constraint','若数字周围雷数已被全部标记，其余未知邻格必然安全。','When all neighboring mines are flagged, the other cells are safe.'],
+ ['全雷约束','All Mines','如果剩余未开格数等于剩余雷数，则它们全部是雷。','If unknown cells equal the remaining mine count, all are mines.'],
+ ['联立约束','Constraint Equations','每个数字都对应一个二进制和式：周围地雷数等于提示数字。','Each clue is a binary sum equation.'],
+ ['集合包含','Subset Inference','比较两个数字所包含的未知格集合，能推出新增安全格。','Subset differences can reveal additional forced cells.'],
+ ['边界的影响','Boundary Effects','角落只有三个邻居，边缘通常只有五个。','Corners have three neighbors and edges usually five.'],
+ ['不确定不是安全','No Forced Move','有时没有任何必然安全的选择，AI 必须承认不确定性。','Sometimes no move is provably safe; the AI must say so.'],
+ ['局部推理','Local Reasoning','先研究最少未知邻居的数字区域。','Start with clues that have few unknown neighbors.'],
+ ['逐层传播','Propagation','确认一格安全或有雷后，再更新其他数字的约束。','Apply each finding to neighboring constraints.'],
+ ['概率与风险','Probability & Risk','本版只给出可证明的安全结论，不输出未经验证的概率。','This version gives provable deductions, not unverified probabilities.'],
+ ['算法的边界','Solver Limitations','逻辑求解器不会读取隐藏雷位，也不保证每盘都不需要猜。','The solver never peeks at mines and cannot avoid every guess.']
+];
+function eduText(zh,en){return eduLang==='zh'?zh:en;}
+function drawLessons(){const out=root.querySelector('#edu-lessons');out.replaceChildren(...lessons.map((l,i)=>{const b=document.createElement('button');b.className='edu-lesson'+(i===activeLesson?' active':'');b.textContent=`${String(i+1).padStart(2,'0')} · ${l[eduLang==='zh'?0:1]}`;const small=document.createElement('small');small.textContent=l[eduLang==='zh'?2:3];b.append(small);b.onclick=()=>{activeLesson=i;drawLessons();};return b;}));}
+function renderEdu(){root.querySelector('#edu-title').textContent=eduText('扫雷 · 逻辑研究所','Minesweeper · Logic Lab');root.querySelector('#edu-intro').textContent=eduText('AI 只看已翻开的数字与旗帜，不偷看地雷。','AI sees only revealed clues and flags, never hidden mines.');root.querySelector('#edu-hint').textContent=eduText('✧ AI 逻辑提示','✧ Logic Hint');root.querySelector('#edu-auto').textContent=eduText('◈ 翻开确定安全格','◈ Reveal proven safe');root.querySelector('#edu-lessons-heading').textContent=eduText('系统课程 · 12 节','12 Logic Lessons');root.querySelector('#edu-disclaimer').textContent=eduText('只做可证明的逻辑推断；无确定解时不会冒充安全。','Only proven deductions; uncertain cells are never called safe.');root.querySelector('#mine-count-label').textContent=eduText('💣 地雷数','💣 Mines');root.querySelector('#apply-mines').textContent=eduText('应用并开新局','Apply & restart');drawLessons();}
+function calculate(){
+  const visible=cells.map(c=>({revealed:c.revealed,flagged:c.flagged,count:c.revealed&&!c.mine?c.count:null}));
+  lastInference=infer(settings.rows,settings.cols,visible);
+  const result=root.querySelector('#edu-result'),eq=root.querySelector('#edu-equations');
+  result.textContent=eduText(`当前 ${lastInference.equations.length} 条数字约束；推导出 ${lastInference.safe.length} 个安全格、${lastInference.mines.length} 个雷格。`,`Found ${lastInference.equations.length} constraints: ${lastInference.safe.length} safe, ${lastInference.mines.length} mines.`);
+  eq.textContent=lastInference.messages.slice(0,8).join(' · ')||eduText('暂时没有必然结论，请进一步探索。','No forced move; more information is needed.');
+  return lastInference;
+}
+root.querySelector('#edu-lang').onclick=()=>{eduLang=eduLang==='zh'?'en':'zh';renderEdu();};
+root.querySelector('#edu-hint').onclick=()=>{if(ended)return;const r=calculate();hintIndex=r.safe.find(i=>!cells[i].revealed&&!cells[i].flagged)??-1;if(hintIndex<0)announce(eduText('当前没有能证明安全的位置，请依据局面再判断。','No provably safe move right now.'));else announce(eduText(`绿色方格 (${Math.floor(hintIndex/settings.cols)+1},${hintIndex%settings.cols+1}) 已由数字约束证明安全。`,'The green cell is proven safe by clue constraints.'));render();};
+root.querySelector('#edu-auto').onclick=()=>{if(ended)return;const r=calculate(),i=r.safe.find(i=>!cells[i].revealed&&!cells[i].flagged);if(i===undefined){announce(eduText('没有可自动打开的必然安全格。','No proven safe cell to reveal.'));return;}hintIndex=-1;reveal(i);};
+
+const neighbors=i=>{const r=Math.floor(i/settings.cols),c=i%settings.cols,a=[];for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(!dr&&!dc)continue;const rr=r+dr,cc=c+dc;if(rr>=0&&rr<settings.rows&&cc>=0&&cc<settings.cols)a.push(rr*settings.cols+cc);}return a;};
+const format=n=>String(Math.max(0,n)).padStart(3,'0');
+function updateStats(){minesEl.textContent=(settings.mines-flags<0?'-':'')+format(Math.abs(settings.mines-flags));timeEl.textContent=format(seconds);}
+function stopTimer(){if(timer!==null){clearInterval(timer);timer=null;}}
+function startTimer(){stopTimer();timer=setInterval(()=>{seconds++;timeEl.textContent=format(seconds);},1000);}
+function placeMines(first){for(const i of generateMinePositions(settings.rows,settings.cols,settings.mines,first))cells[i].mine=true;for(let i=0;i<cells.length;i++)if(!cells[i].mine)cells[i].count=neighbors(i).filter(j=>cells[j].mine).length;}
+function announce(text){messageEl.textContent=text;}
+function render(){const frag=document.createDocumentFragment();for(let i=0;i<cells.length;i++){const cell=cells[i],b=document.createElement('button');b.type='button';b.className='cell'+(i===hintIndex?' safehint':'');b.dataset.index=String(i);b.setAttribute('role','gridcell');b.setAttribute('aria-label',`第${Math.floor(i/settings.cols)+1}行第${i%settings.cols+1}列`);if(cell.revealed){b.classList.add('revealed');if(cell.mine){b.classList.add('mine');if(exploded===i)b.classList.add('exploded');b.textContent='💣';b.setAttribute('aria-label','地雷');}else if(cell.count){b.classList.add('n'+cell.count);b.textContent=String(cell.count);b.setAttribute('aria-label',`周围有${cell.count}颗地雷`);}else b.setAttribute('aria-label','空白，已翻开');}else if(cell.flagged){b.classList.add('flagged');b.textContent='🚩';b.setAttribute('aria-label','已插旗');if(ended&&!cell.mine){b.classList.add('wrong');b.textContent='❌';}}frag.appendChild(b);}boardEl.replaceChildren(frag);updateStats();}
+function finish(win,hit=-1){ended=true;stopTimer();if(win){for(const cell of cells)if(cell.mine)cell.flagged=true;flags=settings.mines;faceEl.textContent='😎';announce(`🎉 恭喜通关！用时 ${seconds} 秒，所有安全方块已揭开。`);}else{exploded=hit;for(const cell of cells)if(cell.mine)cell.revealed=true;faceEl.textContent='😵';announce('💥 踩到地雷了！点「重新开始」再挑战一次。');}render();}
+function checkWin(){if(opened===cells.length-settings.mines)finish(true);}
+function flood(index){const todo=[index];while(todo.length){const i=todo.pop(),cell=cells[i];if(cell.revealed||cell.flagged)continue;if(cell.mine){finish(false,i);return;}cell.revealed=true;opened++;if(cell.count===0)for(const n of neighbors(i))if(!cells[n].revealed&&!cells[n].flagged)todo.push(n);}}
+function reveal(index){if(ended||cells[index].flagged)return;if(cells[index].revealed){const around=neighbors(index);if(cells[index].count>0&&around.filter(i=>cells[i].flagged).length===cells[index].count){for(const i of around)if(!cells[i].flagged&&!cells[i].revealed){flood(i);if(ended)return;}checkWin();if(!ended)render();}return;}if(!started){placeMines(index);started=true;startTimer();announce('游戏进行中：用数字判断周围的地雷数量。');}flood(index);if(!ended){checkWin();if(!ended)render();}}
+function toggleFlag(index){const cell=cells[index];if(ended||cell.revealed)return;if(!cell.flagged&&flags>=settings.mines){announce('🚩 旗帜已用完，可以取消其他旗帜后再插。');return;}cell.flagged=!cell.flagged;flags+=cell.flagged?1:-1;render();}
+function refreshMineControls(){
+  mineCountInput.min='1';mineCountInput.max=String(maxMines(settings.rows,settings.cols));
+  mineCountInput.value=String(settings.mines);mineCountInput.setAttribute('aria-invalid','false');
+  mineRangeEl.textContent=`1–${mineCountInput.max}`;
+}
+function reset(nextLevel=level){
+  hintIndex=-1;lastInference=null;stopTimer();level=nextLevel;settings=levelSettings(level);
+  cells=Array.from({length:settings.rows*settings.cols},()=>({mine:false,count:0,flagged:false,revealed:false}));
+  started=false;ended=false;opened=0;flags=0;seconds=0;exploded=-1;suppressClickIndex=-1;
+  clearTimeout(longPressTimer);flagMode=false;flagModeEl.setAttribute('aria-pressed','false');
+  flagModeEl.textContent='🚩 插旗模式：关';faceEl.textContent='🙂';
+  boardEl.style.setProperty('--cols',settings.cols);
+  root.querySelectorAll('.level').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.level===level)));
+  refreshMineControls();
+  announce(eduText(`已设置 ${settings.rows}×${settings.cols} 棋盘、${settings.mines} 颗雷。首次点击及周围格安全。`,`${settings.rows}×${settings.cols} board with ${settings.mines} mines. First click and neighbors are safe.`));
+  render();requestAnimationFrame(sizeMineBoard);
+}
+function applyCustomMines(){
+  const checked=validateMineCount(mineCountInput.value,settings.rows,settings.cols);
+  if(!checked.ok){
+    mineCountInput.setAttribute('aria-invalid','true');
+    announce(eduText(`请输入 1–${checked.max} 之间的整数雷数（需要为首次点击及周围预留安全格）。`,`Enter a whole number from 1 to ${checked.max}; nine cells must remain available for a safe first click.`));
+    mineCountInput.focus();return;
+  }
+  mineCountInput.setAttribute('aria-invalid','false');
+  rememberMineCount(level,checked.value);
+  reset(level);
+  announce(eduText(`已应用 ${checked.value} 颗地雷，新一局已准备好；首次点击及周围八格安全。`,`New game ready with ${checked.value} mines; the first click and neighbors are safe.`));
+}
+root.querySelector('#apply-mines').addEventListener('click',applyCustomMines);
+mineCountInput.addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();applyCustomMines();}});
+mineCountInput.addEventListener('input',()=>mineCountInput.setAttribute('aria-invalid','false'));
+boardEl.addEventListener('click',e=>{const b=e.target.closest('button.cell');if(!b)return;const i=Number(b.dataset.index);if(suppressClickIndex===i){suppressClickIndex=-1;return;}hintIndex=-1;flagMode?toggleFlag(i):reveal(i);});
+boardEl.addEventListener('contextmenu',e=>{const b=e.target.closest('button.cell');if(!b)return;e.preventDefault();toggleFlag(Number(b.dataset.index));});
+boardEl.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')return;const b=e.target.closest('button.cell');if(!b)return;longPressIndex=Number(b.dataset.index);startPointer={x:e.clientX,y:e.clientY};clearTimeout(longPressTimer);longPressTimer=setTimeout(()=>{toggleFlag(longPressIndex);suppressClickIndex=longPressIndex;longPressTimer=null;},500);});
+boardEl.addEventListener('pointermove',e=>{if(startPointer&&Math.hypot(e.clientX-startPointer.x,e.clientY-startPointer.y)>12){clearTimeout(longPressTimer);longPressTimer=null;startPointer=null;}});
+['pointerup','pointercancel','pointerleave'].forEach(type=>boardEl.addEventListener(type,()=>{clearTimeout(longPressTimer);longPressTimer=null;startPointer=null;}));
+root.querySelectorAll('.level').forEach(b=>b.addEventListener('click',()=>reset(b.dataset.level)));
+root.querySelector('#new-game').addEventListener('click',()=>reset());faceEl.addEventListener('click',()=>reset());
+flagModeEl.addEventListener('click',()=>{flagMode=!flagMode;flagModeEl.setAttribute('aria-pressed',String(flagMode));flagModeEl.textContent=`🚩 插旗模式：${flagMode?'开':'关'}`;});
+const mineLabOpen=document.getElementById('mine-lab-open');
+const mineLabPanel=root.querySelector('.edu-panel');
+function setMineLab(open){mineLabPanel.classList.toggle('edu-visible',open);mineLabOpen.setAttribute('aria-expanded',String(open));}
+mineLabOpen.onclick=()=>setMineLab(!mineLabPanel.classList.contains('edu-visible'));
+document.getElementById('mine-lab-close').onclick=()=>setMineLab(false);
+document.addEventListener('keydown',e=>{if(e.key==='Escape')setMineLab(false)});
+function sizeMineBoard(){
+  const scroller=root.querySelector('.board-scroller');
+  const bounds=scroller.getBoundingClientRect();
+  // The toolbar can wrap on mobile; measure the actual remaining board area.
+  const w=Math.max(120,bounds.width-22),h=Math.max(120,bounds.height-24);
+  const cell=Math.max(17,Math.min(70,Math.floor(Math.min((w-16-(settings.cols-1)*3)/settings.cols,(h-16-(settings.rows-1)*3)/settings.rows))));
+  boardEl.style.setProperty('--cell',cell+'px');
+}
+window.addEventListener('resize',sizeMineBoard);
+root.querySelectorAll('.level').forEach(el=>el.addEventListener('click',()=>requestAnimationFrame(sizeMineBoard)));
+renderEdu();reset();sizeMineBoard();
+})();
+</script>
+</body>
+</html>

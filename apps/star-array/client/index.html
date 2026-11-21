@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="zh-CN"><head>
+<meta charset="UTF-8"/><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#090e1d" />
+<meta name="description" content="星阵：共振计划 · 深空数学解谜与GF(2)算法实验室" />
+<title>STAR ARRAY · 星阵：共振计划</title>
+<link rel="stylesheet" href="/play/star/client/style.css"/>
+</head><body>
+<div class="stars-backdrop" aria-hidden="true"><div class="nebula nebula-a"></div><div class="nebula nebula-b"></div></div>
+<div id="app" class="app-shell">
+  <header class="topbar glass">
+    <div class="brand"><div class="brand-logo"><span>✧</span></div><div><div class="brand-eyebrow">RESONANCE INITIATIVE / 001</div><div class="brand-name" data-i18n="name">星阵<span>·</span>共振计划</div></div></div>
+    <div class="top-actions"><button class="icon-label drawer-toggle" id="levelsToggle" type="button" aria-expanded="false">☰ 关卡</button><button class="icon-label drawer-toggle" id="labToggle" type="button" aria-expanded="false">∑ 算法</button><span class="prototype-tag" data-i18n="prototype">V0.1 · 核心原型</span><button class="icon-label" id="langBtn" title="切换语言" aria-label="Change language">中 / EN</button><button class="icon-label" id="settingsBtn" data-i18n="settings">⚙ 设置</button></div>
+  </header>
+  <div class="content-layout" id="layout"><button id="drawerShade" class="drawer-shade" type="button" aria-label="关闭侧边面板" hidden></button>
+    <aside class="left-sidebar glass" id="levelsPane"><button class="pane-close" id="levelsClose" type="button" aria-label="Close levels">✕</button>
+      <div class="side-head"><span class="tiny-overline" data-i18n="expedition">EXPEDITION / 星域探索</span><span class="tiny-star">✦</span></div>
+      <div class="feature-intro"><div class="intro-orbit">◈</div><h1 data-i18n="explore">探索未知星阵</h1><p data-i18n="intro">控制脉冲，研究共振。用最少的步骤让所有星体安静下来。</p></div>
+      <div class="side-section-title"><span data-i18n="chapterList">航行日志 · 十二星域</span><span id="progressLabel">0 / 12</span></div>
+      <div id="levels" class="level-list" role="group" aria-label="Level selection"></div>
+      <button id="randomBtn" class="nav-card"><span class="nav-mark">∞</span><span><strong data-i18n="freeOrbit">自由星域</strong><small data-i18n="freeOrbitSub">随机生成 · 保证有解</small></span><span class="arrow">↗</span></button>
+      <div class="sidebar-foot"><span class="status-spark"></span><span data-i18n="offline">本地可玩 · 无需账号</span></div>
+    </aside>
+    <main class="center-zone">
+      <div class="mission-header"><div><div class="breadcrumb"><span data-i18n="sector">SECTOR / 星域编号</span><span id="missionIndex">01 / 12</span></div><h2 id="missionTitle">第一道脉冲</h2><p id="missionDesc" data-i18n="missionDesc">所有星体恢复休眠状态，即可完成此次共振。</p></div><div class="mission-medal"><div class="medal-illustration">✶</div><span data-i18n="mission">MISSION</span></div></div>
+      <section class="board-shell" aria-label="Star array puzzle">
+        <div class="board-header"><div class="state-indicator"><span class="live-dot"></span><span id="boardState" data-i18n="synchronizing">STARFIELD ONLINE</span></div><div class="board-size-tag" id="sizeTag">5 × 5</div></div>
+        <div class="board-stage"><div class="orbit-decor orbit-decor-1"></div><div class="orbit-decor orbit-decor-2"></div><div id="board" class="board" role="group" aria-label="Game board"></div></div>
+        <div class="board-metrics"><div><small data-i18n="moves">已用脉冲</small><strong id="moveCount">0</strong></div><div class="metric-line"></div><div><small data-i18n="starsLeft">活跃星体</small><strong id="activeCount">0</strong></div><div class="metric-line"></div><div><small data-i18n="best">理论最少</small><strong id="minCount">—</strong></div></div>
+        <div class="board-actions"><button class="btn btn-soft" id="undoBtn"><span>↶</span><span data-i18n="undo">撤销</span></button><button class="btn btn-soft" id="redoBtn"><span>↷</span><span data-i18n="redo">重做</span></button><button class="btn btn-soft" id="resetBtn"><span>⟳</span><span data-i18n="reset">重置</span></button><button class="btn btn-gold" id="hintBtn"><span>✧</span><span data-i18n="hint">提示一手</span></button></div>
+      </section>
+      <div class="gamefoot"><span>◦</span><span data-i18n="mathNote">同一点点击两次会抵消。点击顺序不影响最终结果。</span><span>◦</span></div>
+    </main>
+    <aside class="right-sidebar glass" id="analysisPane"><button class="pane-close" id="labClose" type="button" aria-label="Close analysis">✕</button>
+      <div class="analysis-tabs"><button class="tab active" data-tab="overview" data-i18n="lab">数学实验室</button><button class="tab" data-tab="matrix" data-i18n="matrixTab">矩阵视图</button></div>
+      <div class="analysis-scroll"><section id="overviewTab" class="analysis-section">
+        <div class="tutor-card"><div class="tutor-avatar">∑</div><div><small data-i18n="tutorEyebrow">YOUR MATHEMATICAL GUIDE</small><strong data-i18n="tutor">共振研究员</strong></div><span class="tutor-signal"></span></div>
+        <p class="tutor-message" id="tutorText">每次脉冲都是一次 GF(2) 运算。观察哪个节点能影响最多活跃星体。</p>
+        <div class="section-title"><span data-i18n="equation">核心方程</span><small>GF(2)</small></div>
+        <div class="formula"><span>A</span><span class="faint">·</span><span>x</span><span class="faint">=</span><span>b</span><small>mod 2</small></div>
+        <div class="explain-text" data-i18n="formulaDesc">A 是共振关系，x 是点击方案，b 是当前星体状态。</div>
+        <div class="data-rows"><div><span data-i18n="rank">矩阵秩</span><strong id="rankValue">—</strong></div><div><span data-i18n="nullity">零空间维数</span><strong id="nullityValue">—</strong></div><div><span data-i18n="solutions">潜在解数量</span><strong id="solutionsValue">—</strong></div><div><span data-i18n="optimal">最优性</span><strong id="optimalValue">—</strong></div></div>
+        <div class="section-title gap-top"><span data-i18n="algorithm">算法决策过程</span><small data-i18n="live">LIVE ANALYSIS</small></div>
+        <div class="algo-steps"><div><b>01</b><span data-i18n="step1">读取二进制棋盘</span><i>✓</i></div><div><b>02</b><span data-i18n="step2">建立影响矩阵</span><i>✓</i></div><div><b>03</b><span data-i18n="step3">GF(2) 高斯消元</span><i>✓</i></div><div><b>04</b><span data-i18n="step4">搜索最短点击方案</span><i>✓</i></div></div>
+        <div class="algorithm-details" id="algoDetails"></div>
+        <button id="solutionBtn" class="outline-btn" data-i18n="showSolution">查看一组解法</button><div id="solutionDisplay" class="solution-display" hidden></div>
+      </section>
+      <section id="matrixTab" class="analysis-section" hidden><div class="section-title"><span data-i18n="matrixTitle">共振矩阵</span><small>GF(2)</small></div><p class="explain-text" data-i18n="matrixDesc">每行对应受影响的星体，每列对应一次点击，1 表示会翻转。大棋盘可以横向滚动。</p><div id="matrixView" class="matrix-scroll"></div><div class="section-title gap-top"><span data-i18n="elimination">行消元记录</span><small>RREF</small></div><div id="traceList" class="trace-list"></div></section></div>
+      <div class="analysis-footer">✧ <span data-i18n="teacherFooter">数学不是奖励，而是这个宇宙的运行规则。</span></div>
+    </aside>
+  </div>
+  <footer class="footer"><span>STAR ARRAY © PROTOTYPE</span><span data-i18n="footer">单人核心原型 · 十人协作将在后续版本加入</span></footer>
+  <button id="mobileLabBtn" class="mobile-lab-btn" data-i18n="openLab">∑ 数学老师</button>
+  <div id="modalBackdrop" class="modal-backdrop" hidden><div class="modal glass" role="dialog" aria-modal="true" aria-labelledby="modalTitle"><div class="modal-title-row"><h2 id="modalTitle" data-i18n="settingsTitle">游戏设置</h2><button id="closeSettings" class="close-btn" aria-label="Close">✕</button></div><div class="setting"><label data-i18n="language">语言 / Language</label><div class="segmented"><button id="zhBtn">中文</button><button id="enBtn">English</button></div></div><div class="setting"><label data-i18n="theme">主题</label><div class="segmented"><button data-theme="space" data-i18n="spaceTheme">深空蓝</button><button data-theme="violet" data-i18n="violetTheme">星云紫</button></div></div><div class="setting"><label data-i18n="panelSide">数学面板位置（电脑端）</label><div class="segmented"><button data-side="right" data-i18n="right">右边</button><button data-side="left" data-i18n="left">左边</button></div></div><div class="setting"><label data-i18n="motion">动画效果</label><div class="segmented"><button data-motion="full" data-i18n="fullMotion">开启</button><button data-motion="reduced" data-i18n="reducedMotion">减少</button></div></div><p class="modal-sub" data-i18n="settingsNote">设置会保存在当前浏览器。V0.1 尚未包含账号及联网协作。</p></div></div>
+  <div id="victory" class="victory-backdrop" hidden><div class="victory-card glass"><div class="victory-emblem">✺</div><small data-i18n="stabilized">RESONANCE STABILIZED</small><h2 data-i18n="victory">星阵重归寂静</h2><p id="victorySub"></p><div class="victory-stars" id="victoryStars">✦ ✦ ✦</div><button id="nextBtn" class="btn btn-gold" data-i18n="next">下一星域 →</button><button id="victoryClose" class="text-btn" data-i18n="stay">继续研究当前星域</button></div></div>
+</div>
+<script type="module" src="/play/star/client/app.js"></script>
+</body></html>

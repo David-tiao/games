@@ -1,0 +1,14 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { moveIndices, togglePoint, applyClicks, solve, influenceRows } from '../shared/math.js';
+import { LEVELS, newPuzzle } from '../shared/levels.js';
+test('center pulse affects exactly 5 stars on 5x5',()=>assert.deepEqual(moveIndices(5,12).sort((a,b)=>a-b),[7,11,12,13,17]));
+test('corner pulse affects only 3 stars',()=>assert.deepEqual(moveIndices(5,0).sort((a,b)=>a-b),[0,1,5]));
+test('double pulse cancels over GF2',()=>{const board=Array.from({length:25},(_,i)=>i%2);assert.deepEqual(togglePoint(togglePoint(board,5,11),5,11),board);});
+test('pulses commute',()=>{const board=Array(49).fill(0);assert.deepEqual(applyClicks(board,7,[2,18,30]),applyClicks(board,7,[30,2,18]));});
+test('influence matrix is symmetric',()=>{for(const n of [3,5,7]){const rows=influenceRows(n);for(let i=0;i<n*n;i++)for(let j=0;j<n*n;j++)assert.equal(Number((rows[i]>>BigInt(j))&1n),Number((rows[j]>>BigInt(i))&1n));}});
+test('every curated level has a valid certified solution',()=>{for(const l of LEVELS){const result=solve(l.initial,l.size);assert.equal(result.solvable,true,`level ${l.id}`);assert.equal(result.minProven,true,`level ${l.id}`);assert.deepEqual(applyClicks(l.initial,l.size,result.clicks),Array(l.size*l.size).fill(0),`level ${l.id}`);assert.equal(l.minClicks,result.minClicks);}});
+test('12 levels with progressive board sizes',()=>{assert.equal(LEVELS.length,12);assert.deepEqual([...new Set(LEVELS.map(l=>l.size))],[3,5,7]);});
+test('new random puzzles are solvable',()=>{for(const s of [3,5,7])for(let seed=1;seed<=5;seed++){const p=newPuzzle(s,seed);const result=solve(p.initial,s);assert.equal(result.solvable,true);assert.deepEqual(applyClicks(p.initial,s,result.clicks),Array(s*s).fill(0));}});
+test('unreachable boards can be detected if influence rank deficient',()=>{const n=5,rows=influenceRows(n);assert.equal(rows.length,n*n);const b=Array(n*n).fill(0);assert.equal(solve(b,n).minClicks,0);});
+test('invalid inputs rejected',()=>{assert.throws(()=>moveIndices(3,20),RangeError);assert.throws(()=>togglePoint([1,2],3,0),TypeError);assert.throws(()=>solve([1,1],3),TypeError);});

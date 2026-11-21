@@ -1,0 +1,112 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>扫雷小游戏</title>
+<style>
+  :root { color-scheme: light; --bg:#f4f7fb; --ink:#172b49; --muted:#65758a; --blue:#2970e6; --line:#dce5f1; }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font-family:ui-sans-serif,-apple-system,BlinkMacSystemFont,"Segoe UI","Microsoft YaHei",sans-serif; }
+  #minesweeper-app { min-height:100vh; display:flex; justify-content:center; padding:24px 12px; }
+  .game { width:min(100%,1020px); }
+  .top { text-align:center; margin-bottom:18px; }
+  h1 { font-size:clamp(25px,5vw,34px); margin:0 0 6px; letter-spacing:.04em; }
+  .subtitle { color:var(--muted); font-size:13px; margin:0; }
+  .panel { padding:clamp(14px,3vw,22px); border:1px solid var(--line); border-radius:20px; background:#fff; box-shadow:0 13px 36px #1c3f7010; }
+  .toolbar { display:flex; gap:12px; flex-wrap:wrap; justify-content:space-between; align-items:center; margin-bottom:15px; }
+  .levels { display:flex; flex-wrap:wrap; gap:7px; }
+  button { font:inherit; cursor:pointer; }
+  .level { padding:9px 13px; border:1px solid var(--line); border-radius:10px; background:#fff; color:#456078; font-size:13px; font-weight:700; }
+  .level[aria-pressed="true"] { background:#e6f0ff; color:#1253b7; border-color:#a9c9ff; }
+  .new { background:#1b63cf; color:#fff; border:0; padding:10px 15px; border-radius:10px; font-weight:700; font-size:13px; }
+  .new:hover { background:#114fae; }
+  .hud { display:flex; gap:10px; justify-content:space-between; align-items:center; border:1px solid var(--line); background:#f8faff; padding:9px 13px; border-radius:12px; }
+  .metric { min-width:80px; }
+  .metric-label { color:var(--muted); font-size:11px; display:block; margin-bottom:2px; }
+  .metric-value { font-variant-numeric:tabular-nums; font-size:22px; font-weight:800; letter-spacing:.03em; }
+  .face { min-width:48px; min-height:45px; border-radius:12px; border:1px solid #d1dff0; background:white; font-size:27px; line-height:1; }
+  .message { margin:12px 0; font-weight:700; font-size:13px; color:#496785; min-height:19px; text-align:center; }
+  .board-scroller { width:100%; overflow:auto; padding:2px 1px 7px; text-align:center; }
+  #board { --cell:32px; display:grid; grid-template-columns:repeat(var(--cols),var(--cell)); width:max-content; margin:0 auto; gap:3px; padding:8px; border:1px solid #d7e4f3; background:#eaf0f9; border-radius:12px; user-select:none; -webkit-user-select:none; touch-action:pan-x pan-y; }
+  .cell { display:flex; justify-content:center; align-items:center; width:var(--cell); height:var(--cell); padding:0; border:0; border-radius:6px; background:linear-gradient(145deg,#fff,#e4edf9); box-shadow:0 2px 0 #bccde4; font-size:19px; font-weight:900; line-height:1; color:#183b74; -webkit-tap-highlight-color:transparent; }
+  .cell:not(.revealed):hover { background:#d2e4fe; }
+  .cell:focus-visible { outline:3px solid #2970e6; outline-offset:0; }
+  .cell.revealed { background:#fff; box-shadow:inset 0 0 0 1px #dce5f0; cursor:default; }
+  .cell.flagged { color:#de4661; background:#fff0f3; }
+  .cell.mine { background:#ffe6e6; }
+  .cell.exploded { background:#f77777; }
+  .cell.wrong { background:#fff0ec; }
+  .n1 { color:#2770db; }.n2 { color:#2e995e; }.n3 { color:#d44a4a; }.n4 { color:#6b46c8; }
+  .n5 { color:#ad5925; }.n6 { color:#139fa1; }.n7 { color:#39445e; }.n8 { color:#7c889a; }
+  .bottom { display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:9px; margin-top:14px; }
+  .tip { font-size:12px; color:var(--muted); line-height:1.6; }
+  .mode { border:1px solid #becfe6; background:#f5f8fe; color:#3d5472; border-radius:10px; padding:10px 13px; font-size:12px; font-weight:800; }
+  .mode[aria-pressed="true"] { background:#fff1d7; color:#956100; border-color:#f6c66a; }
+  @media(max-width:600px){ #minesweeper-app{padding:14px 8px} .panel{padding:12px 8px} .level{padding:8px 10px} #board{--cell:29px;gap:2px;padding:5px} .cell{border-radius:5px;font-size:17px}.metric{min-width:60px}.metric-value{font-size:20px} }
+</style>
+</head>
+<body>
+<div id="minesweeper-app">
+ <main class="game">
+  <header class="top"><h1>💣 扫雷</h1><p class="subtitle">避开地雷，揭开所有安全方块！</p></header>
+  <section class="panel" aria-label="扫雷游戏">
+   <div class="toolbar">
+    <div class="levels" role="group" aria-label="选择难度">
+     <button type="button" class="level" data-level="easy" aria-pressed="true">初级 9×9</button>
+     <button type="button" class="level" data-level="medium" aria-pressed="false">中级 16×16</button>
+     <button type="button" class="level" data-level="hard" aria-pressed="false">高级 30×16</button>
+    </div>
+    <button type="button" id="new-game" class="new">↻ 重新开始</button>
+   </div>
+   <div class="hud">
+    <div class="metric"><span class="metric-label">剩余地雷</span><span class="metric-value" id="mines-left">010</span></div>
+    <button type="button" id="face" class="face" title="重新开始" aria-label="重新开始">🙂</button>
+    <div class="metric" style="text-align:right"><span class="metric-label">用时（秒）</span><span class="metric-value" id="time">000</span></div>
+   </div>
+   <p class="message" id="message" role="status" aria-live="polite">点击任意方块开始，首次点击不会踩雷。</p>
+   <div class="board-scroller"><div id="board" role="grid" aria-label="扫雷棋盘"></div></div>
+   <div class="bottom"><span class="tip">电脑：左键翻开，右键插旗。手机：长按插旗，或开启插旗模式。</span><button type="button" class="mode" id="flag-mode" aria-pressed="false">🚩 插旗模式：关</button></div>
+  </section>
+ </main>
+</div>
+<script>
+(() => {
+'use strict';
+const root=document.getElementById('minesweeper-app');
+const boardEl=root.querySelector('#board');
+const minesEl=root.querySelector('#mines-left');
+const timeEl=root.querySelector('#time');
+const messageEl=root.querySelector('#message');
+const faceEl=root.querySelector('#face');
+const flagModeEl=root.querySelector('#flag-mode');
+const levels={easy:{rows:9,cols:9,mines:10},medium:{rows:16,cols:16,mines:40},hard:{rows:16,cols:30,mines:99}};
+let level='easy',settings=levels[level],cells=[],started=false,ended=false,opened=0,flags=0,seconds=0,timer=null,flagMode=false,exploded=-1;
+let longPressTimer=null,longPressIndex=-1,suppressClickIndex=-1,startPointer=null;
+const neighbors=i=>{const r=Math.floor(i/settings.cols),c=i%settings.cols,a=[];for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++){if(!dr&&!dc)continue;const rr=r+dr,cc=c+dc;if(rr>=0&&rr<settings.rows&&cc>=0&&cc<settings.cols)a.push(rr*settings.cols+cc);}return a;};
+const format=n=>String(Math.max(0,n)).padStart(3,'0');
+function updateStats(){minesEl.textContent=(settings.mines-flags<0?'-':'')+format(Math.abs(settings.mines-flags));timeEl.textContent=format(seconds);}
+function stopTimer(){if(timer!==null){clearInterval(timer);timer=null;}}
+function startTimer(){stopTimer();timer=setInterval(()=>{seconds++;timeEl.textContent=format(seconds);},1000);}
+function placeMines(first){const safe=new Set([first,...neighbors(first)]);let choices=[];for(let i=0;i<cells.length;i++)if(!safe.has(i))choices.push(i);for(let i=choices.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[choices[i],choices[j]]=[choices[j],choices[i]];}for(let i=0;i<settings.mines;i++)cells[choices[i]].mine=true;for(let i=0;i<cells.length;i++)if(!cells[i].mine)cells[i].count=neighbors(i).filter(j=>cells[j].mine).length;}
+function announce(text){messageEl.textContent=text;}
+function render(){const frag=document.createDocumentFragment();for(let i=0;i<cells.length;i++){const cell=cells[i],b=document.createElement('button');b.type='button';b.className='cell';b.dataset.index=String(i);b.setAttribute('role','gridcell');b.setAttribute('aria-label',`第${Math.floor(i/settings.cols)+1}行第${i%settings.cols+1}列`);if(cell.revealed){b.classList.add('revealed');if(cell.mine){b.classList.add('mine');if(exploded===i)b.classList.add('exploded');b.textContent='💣';b.setAttribute('aria-label','地雷');}else if(cell.count){b.classList.add('n'+cell.count);b.textContent=String(cell.count);b.setAttribute('aria-label',`周围有${cell.count}颗地雷`);}else b.setAttribute('aria-label','空白，已翻开');}else if(cell.flagged){b.classList.add('flagged');b.textContent='🚩';b.setAttribute('aria-label','已插旗');if(ended&&!cell.mine){b.classList.add('wrong');b.textContent='❌';}}frag.appendChild(b);}boardEl.replaceChildren(frag);updateStats();}
+function finish(win,hit=-1){ended=true;stopTimer();if(win){for(const cell of cells)if(cell.mine)cell.flagged=true;flags=settings.mines;faceEl.textContent='😎';announce(`🎉 恭喜通关！用时 ${seconds} 秒，所有安全方块已揭开。`);}else{exploded=hit;for(const cell of cells)if(cell.mine)cell.revealed=true;faceEl.textContent='😵';announce('💥 踩到地雷了！点「重新开始」再挑战一次。');}render();}
+function checkWin(){if(opened===cells.length-settings.mines)finish(true);}
+function flood(index){const todo=[index];while(todo.length){const i=todo.pop(),cell=cells[i];if(cell.revealed||cell.flagged)continue;if(cell.mine){finish(false,i);return;}cell.revealed=true;opened++;if(cell.count===0)for(const n of neighbors(i))if(!cells[n].revealed&&!cells[n].flagged)todo.push(n);}}
+function reveal(index){if(ended||cells[index].flagged)return;if(cells[index].revealed){const around=neighbors(index);if(cells[index].count>0&&around.filter(i=>cells[i].flagged).length===cells[index].count){for(const i of around)if(!cells[i].flagged&&!cells[i].revealed){flood(i);if(ended)return;}checkWin();if(!ended)render();}return;}if(!started){placeMines(index);started=true;startTimer();announce('游戏进行中：用数字判断周围的地雷数量。');}flood(index);if(!ended){checkWin();if(!ended)render();}}
+function toggleFlag(index){const cell=cells[index];if(ended||cell.revealed)return;if(!cell.flagged&&flags>=settings.mines){announce('🚩 旗帜已用完，可以取消其他旗帜后再插。');return;}cell.flagged=!cell.flagged;flags+=cell.flagged?1:-1;render();}
+function reset(nextLevel=level){stopTimer();level=nextLevel;settings=levels[level];cells=Array.from({length:settings.rows*settings.cols},()=>({mine:false,count:0,flagged:false,revealed:false}));started=false;ended=false;opened=0;flags=0;seconds=0;exploded=-1;suppressClickIndex=-1;clearTimeout(longPressTimer);flagMode=false;flagModeEl.setAttribute('aria-pressed','false');flagModeEl.textContent='🚩 插旗模式：关';faceEl.textContent='🙂';boardEl.style.setProperty('--cols',settings.cols);root.querySelectorAll('.level').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.level===level)));announce('点击任意方块开始，首次点击不会踩雷。');render();}
+boardEl.addEventListener('click',e=>{const b=e.target.closest('button.cell');if(!b)return;const i=Number(b.dataset.index);if(suppressClickIndex===i){suppressClickIndex=-1;return;}flagMode?toggleFlag(i):reveal(i);});
+boardEl.addEventListener('contextmenu',e=>{const b=e.target.closest('button.cell');if(!b)return;e.preventDefault();toggleFlag(Number(b.dataset.index));});
+boardEl.addEventListener('pointerdown',e=>{if(e.pointerType==='mouse')return;const b=e.target.closest('button.cell');if(!b)return;longPressIndex=Number(b.dataset.index);startPointer={x:e.clientX,y:e.clientY};clearTimeout(longPressTimer);longPressTimer=setTimeout(()=>{toggleFlag(longPressIndex);suppressClickIndex=longPressIndex;longPressTimer=null;},500);});
+boardEl.addEventListener('pointermove',e=>{if(startPointer&&Math.hypot(e.clientX-startPointer.x,e.clientY-startPointer.y)>12){clearTimeout(longPressTimer);longPressTimer=null;startPointer=null;}});
+['pointerup','pointercancel','pointerleave'].forEach(type=>boardEl.addEventListener(type,()=>{clearTimeout(longPressTimer);longPressTimer=null;startPointer=null;}));
+root.querySelectorAll('.level').forEach(b=>b.addEventListener('click',()=>reset(b.dataset.level)));
+root.querySelector('#new-game').addEventListener('click',()=>reset());faceEl.addEventListener('click',()=>reset());
+flagModeEl.addEventListener('click',()=>{flagMode=!flagMode;flagModeEl.setAttribute('aria-pressed',String(flagMode));flagModeEl.textContent=`🚩 插旗模式：${flagMode?'开':'关'}`;});
+reset();
+})();
+</script>
+</body>
+</html>
