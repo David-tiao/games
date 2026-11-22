@@ -33,3 +33,8 @@ body.in-game.balls-mode .playerBar.expanded{background:#071522ee;padding:7px;bor
 body.in-game.balls-mode .playerBar.expanded .playerLinks{flex-wrap:wrap;justify-content:center;margin-left:0}
 @media(max-width:600px){body.in-game.balls-mode .playerBar.expanded{gap:4px}body.in-game.balls-mode .playerBar.expanded .playerLinks button{padding:8px 9px;font-size:11px}}
 @media(min-width:1121px){.cards{grid-template-columns:repeat(3,minmax(0,1fr))}}
+
+/* V1.4: sixth world — 2D basketball. */
+.basketball .cardArt{background:radial-gradient(circle at center,#e9a25c67,transparent 54%),linear-gradient(135deg,#765035,#13273c)}
+.basketball .symbol{font-family:system-ui,sans-serif;font-size:74px;text-shadow:0 10px 30px #bd683b77}
+.basketball .cardTag{color:#ffcb88}

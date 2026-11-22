@@ -1,14 +1,14 @@
 {
   "name": "four-games-hub",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "private": true,
   "type": "module",
-  "description": "Five-world game hub with user-configurable minesweeper mine counts",
+  "description": "Six-world game hub with 2D basketball prototype",
   "scripts": {
     "start": "node hub/server.mjs",
     "test": "node --test tests/*.test.mjs && npm test --prefix apps/go-online && npm test --prefix apps/gomoku-online && npm test --prefix apps/star-array",
     "build": "npm run build --prefix apps/go-online && npm run build --prefix apps/gomoku-online",
-    "check": "node --check hub/server.mjs && node --check hub/public/assets/main.js && node --check hub/learning/assets/gomoku-ai.js && node --check hub/learning/assets/mines-ai.js && node --check hub/learning/assets/mine-config.js",
+    "check": "node --check hub/server.mjs && node --check hub/public/assets/main.js && node --check hub/learning/assets/gomoku-ai.js && node --check hub/learning/assets/mines-ai.js && node --check hub/learning/assets/mine-config.js && node --check apps/basketball/engine.mjs && node --check apps/basketball/game.js",
     "test:ball": "python3 -m pytest -q apps/neon-ball-lab/tests"
   },
   "engines": {

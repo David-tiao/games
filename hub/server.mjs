@@ -77,7 +77,7 @@ const server=http.createServer(async(req,res)=>{
   let u;
   try{u=new URL(req.url,'http://localhost');}catch{return respond(res,400,'Bad URL');}
   const p=u.pathname;
-  if(p==='/api/health')return respond(res,200,JSON.stringify({ok:true,version:'1.3.0',backends:Object.fromEntries(Object.entries(backends).map(([k,v])=>[k,!!v]))}),'application/json; charset=utf-8');
+  if(p==='/api/health')return respond(res,200,JSON.stringify({ok:true,version:'1.4.0',backends:Object.fromEntries(Object.entries(backends).map(([k,v])=>[k,!!v]))}),'application/json; charset=utf-8');
   if(p==='/api/services'){
     const values=await Promise.all(Object.entries(backends).map(async([key,b])=>{
       if(!b)return [key,false];
@@ -104,6 +104,8 @@ const server=http.createServer(async(req,res)=>{
   if(p==='/play/star'||p==='/play/star/')return staticFile(req,res,path.join(project,'apps/star-array/client'),'/index.html');
   if(p.startsWith('/play/star/client/'))return staticFile(req,res,path.join(project,'apps/star-array/client'),p.slice('/play/star/client'.length));
   if(p.startsWith('/play/star/shared/'))return staticFile(req,res,path.join(project,'apps/star-array/shared'),p.slice('/play/star/shared'.length));
+  if(p==='/play/basketball'||p==='/play/basketball/')return staticFile(req,res,path.join(project,'apps/basketball'),'/index.html');
+  if(p==='/play/basketball/game.js'||p==='/play/basketball/engine.mjs'||p==='/play/basketball/style.css')return staticFile(req,res,path.join(project,'apps/basketball'),p.slice('/play/basketball'.length));
   if(p==='/play/mines'||p==='/play/mines/')return staticFile(req,res,path.join(root,'learning'),'/mines.html');
   if(p==='/learn/gomoku'||p==='/learn/gomoku/')return staticFile(req,res,path.join(root,'learning'),'/gomoku.html');
   if(p.startsWith('/learn/assets/'))return staticFile(req,res,path.join(root,'learning'),p.slice('/learn'.length));
@@ -155,7 +157,7 @@ process.on('SIGINT',()=>{stop();process.exit(0);});
 process.on('SIGTERM',()=>{stop();process.exit(0);});
 server.on('error',e=>{console.error(e.code==='EADDRINUSE'?`游戏大厅端口 ${port} 已被占用，试试 PORT=3301 ./start.sh`:e);process.exitCode=1;});
 server.listen(port,host,async()=>{
-  console.log(`\n🎮 五合一游戏大厅 V1.3\n本机：http://localhost:${port}\n局域网：http://你的电脑IP:${port}\n对外只有一个端口；后端仅监听本机内部端口。\n按 Ctrl+C 结束。\n`);
+  console.log(`\n🎮 六合一游戏大厅 V1.4\n本机：http://localhost:${port}\n局域网：http://你的电脑IP:${port}\n对外只有一个端口；后端仅监听本机内部端口。\n按 Ctrl+C 结束。\n`);
   try{await Promise.all([startBackend('go','apps/go-online/server/src/index.js'),startBackend('gomoku','apps/gomoku-online/server/src/index.js'),startBallTracker()]);}
   catch(e){console.error('内部服务启动失败:',e);}
 });
