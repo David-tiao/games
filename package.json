@@ -1,9 +1,9 @@
 {
   "name": "four-games-hub",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "private": true,
   "type": "module",
-  "description": "Six-world game hub with 2D basketball prototype",
+  "description": "Six-world game hub with basketball V0.2 defensive and collision upgrade",
   "scripts": {
     "start": "node hub/server.mjs",
     "test": "node --test tests/*.test.mjs && npm test --prefix apps/go-online && npm test --prefix apps/gomoku-online && npm test --prefix apps/star-array",

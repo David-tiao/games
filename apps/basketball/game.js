@@ -1,9 +1,9 @@
-import {COURT,createGame,stepGame,shootBall,passBall,trySteal,switchPlayer,bestPassTarget,getShotInfo,distance} from './engine.mjs';
+import {COURT,createGame,stepGame,shootBall,passBall,trySteal,tryBlockShot,switchPlayer,bestPassTarget,getShotInfo,distance} from './engine.mjs';
 const canvas=document.getElementById('court'),ctx=canvas.getContext('2d');
 const $=id=>document.getElementById(id);
-let game=createGame(),last=performance.now(),charge=0,charging=false,aim={x:870,y:330},drawMode='lab',lang='zh',theme='wood',lastUi=0,hasGesture=false;
+let difficulty='normal';let game=createGame(2026,{difficulty}),last=performance.now(),charge=0,charging=false,aim={x:870,y:330},drawMode='lab',lang='zh',theme='wood',lastUi=0,hasGesture=false;
 const keys=new Set();let joy={x:0,y:0};
-try{const prefs=JSON.parse(localStorage.getItem('court-master.preferences')||'{}');lang=prefs.lang==='en'?'en':'zh';theme=prefs.theme==='night'?'night':'wood';}catch{}
+try{const prefs=JSON.parse(localStorage.getItem('court-master.preferences')||'{}');lang=prefs.lang==='en'?'en':'zh';theme=prefs.theme==='night'?'night':'wood';difficulty=['rookie','normal','pro'].includes(prefs.difficulty)?prefs.difficulty:'normal';game.difficulty=difficulty;}catch{}
 const L=(zh,en)=>lang==='zh'?zh:en;
 const lessons=[
  ['移动与空间','Moving and spacing','WASD 控制球员，与队友保持合理距离；太拥挤会影响进攻空间。','Move with WASD. Spacing creates room for passes and drives.'],
@@ -15,8 +15,8 @@ const lessons=[
  ['AI 无球跑位','AI spacing','队友会根据球权站到不同进攻区域；防守者根据持球威胁与队友位置回防。','Teammates spread on offense; defenders match threats and contest the ball.'],
  ['命中率模型','Shot probability model','模型考虑投篮距离、干扰等级、蓄力时机及球员能力。显示数值是游戏内预测，不是现实 NBA 统计。','The model combines range, contest, timing and skill. It is an in-game estimate, not an NBA statistic.']
 ];
-function savePrefs(){try{localStorage.setItem('court-master.preferences',JSON.stringify({lang,theme}));}catch{}}
-function translate(){document.documentElement.lang=lang==='zh'?'zh-CN':'en';document.querySelectorAll('[data-zh][data-en]').forEach(el=>{el.textContent=el.dataset[lang];});$('lang').textContent=lang==='zh'?'中 / EN':'EN / 中';document.body.classList.toggle('theme-night',theme==='night');if(!$('drawer').hidden)updateDrawer();savePrefs();}
+function savePrefs(){try{localStorage.setItem('court-master.preferences',JSON.stringify({lang,theme,difficulty}));}catch{}}
+function translate(){document.documentElement.lang=lang==='zh'?'zh-CN':'en';document.querySelectorAll('[data-zh][data-en]').forEach(el=>{el.textContent=el.dataset[lang];});$('lang').textContent=lang==='zh'?'中 / EN':'EN / 中';$('difficulty').textContent='AI · '+({rookie:L('新手','Easy'),normal:L('标准','Normal'),pro:L('高手','Hard')}[difficulty]);$('pause').textContent=game.status==='paused'?L('▶ 继续','▶ Resume'):L('⏸ 暂停','⏸ Pause');document.body.classList.toggle('theme-night',theme==='night');if(!$('drawer').hidden)updateDrawer();savePrefs();}
 function openDrawer(which){drawMode=which;$('drawer').hidden=false;$('shade').hidden=false;updateDrawer();}
 function closeDrawer(){$('drawer').hidden=true;$('shade').hidden=true;}
 function updateDrawer(){
@@ -32,37 +32,42 @@ function updateDrawer(){
  '<div class="stat"><span>'+L('距篮筐','Distance to hoop')+'</span><b>'+Math.round(info.distance)+' px</b></div>'+
  '<div class="stat"><span>'+L('防守干扰等级','Contest level')+'</span><b>'+info.contest+' / 2</b></div>'+
  '<div class="stat"><span>'+L('蓄力时机分','Timing score')+'</span><b>'+Math.round(info.timing*100)+'%</b></div>'+
+ '<div class="stat"><span>'+L('AI 难度','AI difficulty')+'</span><b>'+({rookie:L('新手','Easy'),normal:L('标准','Normal'),pro:L('高手','Hard')}[game.difficulty])+'</b></div>'+
  '<div class="stat"><span>'+L('投篮价值','Shot value')+'</span><b>'+info.points+' '+L('分','pt')+'</b></div>'+
  '<div class="stat"><span>'+L('游戏命中率预测','Game shot probability')+'</span><b>'+Math.round(info.probability*100)+'%</b></div>'+
  '<div class="hint">'+L('概率使用距离、投篮能力、防守干扰和操作时机共同计算；这不是现实比赛数据，也不保证每球命中。','Probability is derived from distance, player skill, defenders and release timing. This is not real-world data or a guarantee.')+'</div>'+
  '<p><code>P = clamp(0.69 + skill + timing - distance - contest)</code></p>'+
  '<p>'+L('演示模式：3v3 人机。5v5 十人联网与统一账号仍未接入。','Prototype: 3v3 vs AI. Ten-player multiplayer and shared accounts are not yet implemented.')+'</p>';
 }
-function startShot(){if(charging||game.status!=='playing')return;charging=true;charge=0;}
-function releaseShot(){if(!charging)return;charging=false;const p=game.players.find(x=>x.id===game.controlled);if(game.ball.carrier===p.id)shootBall(game,p.id,charge);else tryBlock();charge=0;}
-function tryBlock(){
- const me=game.players.find(x=>x.id===game.controlled),flight=game.ball.flight;
- if(flight?.kind==='shot'){
-  const shooter=game.players.find(x=>x.id===flight.shooter);
-  if(shooter?.team!==me.team && distance(shooter,me)<85){flight.made=false;game.events.unshift(L('近身封盖干扰了投篮！','Close contest alters the shot!'));return;}
+function startShot(){if(charging||game.status!=='playing')return;
+ const me=game.players.find(p=>p.id===game.controlled);
+ if(game.ball.carrier!==me.id){
+  if(tryBlockShot(game,me.id))game.events.unshift(L('封盖成功！','BLOCK!'));
+  else if(game.ball.flight?.kind==='shot')game.events.unshift(L('封盖失败：要靠近投篮人并及时起跳','Block missed: get close and jump early'));
+  return;
  }
- game.events.unshift(L('只有靠近出手球员时才能干扰投篮。','Get close to the shooter to contest.'));}
+ charging=true;charge=0;
+}
+function releaseShot(){if(!charging)return;charging=false;const p=game.players.find(x=>x.id===game.controlled);if(game.ball.carrier===p.id)shootBall(game,p.id,charge);charge=0;}
 function passOrSteal(){
  if(game.status!=='playing')return;
  const me=game.players.find(p=>p.id===game.controlled);
  if(game.ball.carrier===me.id){const to=bestPassTarget(game,me.id,aim);if(to)passBall(game,to);}
  else if(game.ball.carrier)trySteal(game,me.id);
 }
-function reset(){game=createGame(Math.floor(Math.random()*1e9));charging=false;charge=0;keys.clear();$('result').hidden=true;closeDrawer();last=performance.now();}
-function down(e){if(['INPUT','TEXTAREA','BUTTON'].includes(e.target?.tagName))return;const k=e.key.toLowerCase();if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();if(k==='j'&&!keys.has('j'))startShot();if(k==='k'&&!keys.has('k'))passOrSteal();if(k===' '&&!keys.has(' '))switchPlayer(game);if(k==='p'&&!keys.has('p')){game.status=game.status==='paused'?'playing':'paused';}keys.add(k);}
+function reset(){game=createGame(Math.floor(Math.random()*1e9),{difficulty});charging=false;charge=0;keys.clear();$('result').hidden=true;closeDrawer();last=performance.now();}
+function down(e){if(['INPUT','TEXTAREA','BUTTON'].includes(e.target?.tagName))return;const k=e.key.toLowerCase();if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();if(k==='j'&&!keys.has('j'))startShot();if(k==='k'&&!keys.has('k'))passOrSteal();if(k===' '&&!keys.has(' '))switchPlayer(game);if(k==='p'&&!keys.has('p'))togglePause();keys.add(k);}
 function up(e){const k=e.key.toLowerCase();if(k==='j')releaseShot();keys.delete(k);}
 document.addEventListener('keydown',down);document.addEventListener('keyup',up);window.addEventListener('blur',()=>{keys.clear();if(charging)releaseShot();});
 canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();aim={x:(e.clientX-r.left)/r.width*1120,y:(e.clientY-r.top)/r.height*660};});
+function togglePause(){if(game.status==='finished')return;game.status=game.status==='paused'?'playing':'paused';$('pausedBadge').hidden=game.status!=='paused';$('pause').textContent=game.status==='paused'?L('▶ 继续','▶ Resume'):L('⏸ 暂停','⏸ Pause');keys.clear();if(charging){charging=false;charge=0;}}
+$('difficulty').onclick=()=>{difficulty=({rookie:'normal',normal:'pro',pro:'rookie'})[difficulty];game.difficulty=difficulty;game.events.unshift(L('AI 难度切换为 ','AI difficulty: ')+({rookie:L('新手','Easy'),normal:L('标准','Normal'),pro:L('高手','Hard')}[difficulty]));translate();};
+$('pause').onclick=togglePause;
 $('lang').onclick=()=>{lang=lang==='zh'?'en':'zh';translate();};
 $('theme').onclick=()=>{theme=theme==='wood'?'night':'wood';translate();};
 $('restart').onclick=reset;$('again').onclick=reset;
 $('switchBtn').onclick=()=>switchPlayer(game);$('passBtn').onclick=passOrSteal;
-const shoot=$('shootBtn');shoot.addEventListener('pointerdown',e=>{e.preventDefault();shoot.setPointerCapture?.(e.pointerId);startShot();});shoot.addEventListener('pointerup',releaseShot);shoot.addEventListener('pointercancel',releaseShot);
+const shoot=$('shootBtn');shoot.addEventListener('pointerdown',e=>{e.preventDefault();shoot.setPointerCapture?.(e.pointerId);startShot();});shoot.addEventListener('pointerup',releaseShot);shoot.addEventListener('pointercancel',()=>{charging=false;charge=0;});
 $('labBtn').onclick=()=>openDrawer('lab');$('academyBtn').onclick=()=>openDrawer('academy');$('closeDrawer').onclick=closeDrawer;$('shade').onclick=closeDrawer;
 const joystick=$('joystick'),hat=$('joyHat');
 function joyMove(e){const r=joystick.getBoundingClientRect(),dx=e.clientX-r.left-r.width/2,dy=e.clientY-r.top-r.height/2,n=Math.hypot(dx,dy)||1,amt=Math.min(1,n/(r.width*.32));joy={x:dx/n*amt,y:dy/n*amt};hat.style.transform='translate('+joy.x*31+'px,'+joy.y*31+'px)';}
@@ -93,28 +98,47 @@ function playerSprite(p){
  ctx.fillStyle=p.team===0?'#278dd5':'#d25453';ctx.strokeStyle=p.team===0?'#d8f6ff':'#ffdcd5';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.stroke();
  ctx.fillStyle='white';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='900 13px system-ui';ctx.fillText(String(p.n+1),0,1);
  ctx.textBaseline='alphabetic';ctx.fillStyle='#20313c';ctx.font='900 11px system-ui';ctx.fillText(p.id,0,-27);
+ // Small movement sparks and body tilt communicate direction and contact.
+ const v=Math.min(1,Math.hypot(p.vx,p.vy)/190);ctx.strokeStyle=p.team===0?'#70cfff':'#ffc0ad';ctx.lineWidth=3;
+ ctx.beginPath();ctx.moveTo(-7,14);ctx.lineTo(-7-(p.vx/300)*v*9,22);ctx.moveTo(7,14);ctx.lineTo(7-(p.vx/300)*v*9,22);ctx.stroke();
  if(selected){ctx.fillStyle='#182c37';ctx.fillRect(-23,29,46,5);ctx.fillStyle='#a9ecba';ctx.fillRect(-23,29,46*p.stamina/100,5);}
  ctx.restore();
 }
 function ballSprite(){
- const b=game.ball;let x=b.x,y=b.y;
- if(b.carrier){const p=game.players.find(p=>p.id===b.carrier);x=p.x+17;y=p.y+13;}
- const f=b.flight,arc=f?Math.sin(Math.PI*Math.min(1,f.elapsed/f.duration))*50:0;
- ctx.save();ctx.fillStyle='#0007';ctx.beginPath();ctx.ellipse(x,y+5,10,5,0,0,Math.PI*2);ctx.fill();
- ctx.translate(x,y-arc);ctx.shadowColor='#ffdf88';ctx.shadowBlur=10;ctx.fillStyle='#d96b30';ctx.strokeStyle='#542b1a';ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,10+arc*.08,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.shadowBlur=0;
- ctx.beginPath();ctx.moveTo(-9,0);ctx.lineTo(9,0);ctx.moveTo(0,-9);ctx.lineTo(0,9);ctx.stroke();ctx.restore();
+ const b=game.ball,f=b.flight;let x=b.x,y=b.y,arc=0;
+ if(b.carrier){const p=game.players.find(p=>p.id===b.carrier);const moving=Math.min(1,Math.hypot(p.vx,p.vy)/185);
+  const phase=performance.now()*.014;
+  x=p.x+18+Math.cos(phase)*4;y=p.y+13+Math.sin(phase)*3;
+  arc=Math.abs(Math.sin(phase))*moving*10;
+ }else if(f){const t=Math.min(1,f.elapsed/f.duration);arc=Math.sin(Math.PI*t)*(f.arcHeight||28);}
+ if(f){ctx.save();ctx.globalAlpha=.33;ctx.setLineDash([5,8]);ctx.lineWidth=3;ctx.strokeStyle=f.kind==='shot'?'#f9dba0':'#a0dcff';ctx.beginPath();ctx.moveTo(f.from.x,f.from.y);ctx.lineTo(x,y);ctx.stroke();ctx.restore();}
+ ctx.save();ctx.fillStyle='#0009';ctx.beginPath();ctx.ellipse(x,y+6,clampBall(12-arc*.025,5,13),clampBall(5-arc*.016,2,5),0,0,Math.PI*2);ctx.fill();
+ ctx.translate(x,y-arc);ctx.shadowColor='#ffc37a';ctx.shadowBlur=f?19:8;ctx.fillStyle='#ea7f37';ctx.strokeStyle='#66331d';ctx.lineWidth=2;
+ const radius=10+(arc*.024);ctx.beginPath();ctx.arc(0,0,radius,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.shadowBlur=0;
+ ctx.beginPath();ctx.moveTo(-radius,0);ctx.lineTo(radius,0);ctx.moveTo(0,-radius);ctx.lineTo(0,radius);ctx.stroke();
+ ctx.restore();
 }
+function clampBall(v,min,max){return Math.max(min,Math.min(max,v));}
+
 function gameCanvas(){
  ctx.clearRect(0,0,1120,660);court();
  if(game.ball.carrier){const p=game.players.find(x=>x.id===game.ball.carrier);if(p&&p.id===game.controlled){const h={x:game.possession===0?1012:108,y:330};const info=getShotInfo(game,p.id,charging?charge:.78);
  ctx.strokeStyle='#f9f4b7a8';ctx.lineWidth=2;ctx.setLineDash([6,8]);ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(h.x,h.y);ctx.stroke();ctx.setLineDash([]);ctx.fillStyle='#112233a9';ctx.fillRect(720,88,310,54);ctx.fillStyle='#fff8df';ctx.font='700 17px system-ui';ctx.textAlign='center';ctx.fillText(L('预计命中率 ','Shot estimate ')+Math.round(info.probability*100)+'% · '+info.points+L(' 分',' pts'),875,123);}}
  for(const p of game.players)playerSprite(p);ballSprite();
+ for(const e of game.effects){
+  const t=Math.min(1,e.age/e.duration);
+  ctx.save();ctx.globalAlpha=(1-t)*.92;ctx.strokeStyle=e.kind==='block'?'#8ee4ff':e.kind==='score'?'#ffe39a':e.kind==='steal'?'#b0f0d0':'#f9c889';ctx.lineWidth=4;
+  ctx.beginPath();ctx.arc(e.x,e.y,22+t*64,0,Math.PI*2);ctx.stroke();
+  if(e.kind==='score'){ctx.fillStyle='#fff3b1';ctx.font='900 33px system-ui';ctx.textAlign='center';ctx.fillText('+'+e.points,e.x,e.y-30-t*60);}
+  if(e.kind==='block'){ctx.fillStyle='#e4faff';ctx.font='900 20px system-ui';ctx.textAlign='center';ctx.fillText(L('封盖','BLOCK'),e.x,e.y-33-t*38);}
+  ctx.restore();
+ }
 }
 function formatTime(t){return String(Math.floor(t/60)).padStart(2,'0')+':'+String(Math.floor(t%60)).padStart(2,'0');}
 function ui(ts){
  if(ts-lastUi<120)return;lastUi=ts;
  $('blueScore').textContent=game.score[0];$('redScore').textContent=game.score[1];$('clock').textContent=formatTime(game.time);$('shotClock').textContent=Math.ceil(game.shotClock);
- $('eventText').textContent=game.events[0]||'';$('chargeBar').style.width=Math.round(charge*100)+'%';$('chargeNum').textContent=Math.round(charge*100)+'%';
+ $('eventText').textContent=game.events[0]||'';$('pausedBadge').hidden=game.status!=='paused';$('chargeBar').style.width=Math.round(charge*100)+'%';$('chargeNum').textContent=Math.round(charge*100)+'%';
  if(!$('drawer').hidden&&drawMode==='lab')updateDrawer();
  if(game.status==='finished'&&$('result').hidden){$('result').hidden=false;$('resultTitle').textContent=game.score[0]===game.score[1]?L('平局！','Draw!'):game.score[0]>game.score[1]?L('蓝队胜利！','Blue Wins!'):L('红队胜利','Red Wins');
  $('resultScore').textContent=game.score[0]+' : '+game.score[1];}
