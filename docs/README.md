@@ -1,6 +1,6 @@
-# Game Universe V1.7 — 技术文档总览
+# Game Universe V1.8 — 技术文档总览
 
-> 仓库：`https://github.com/David-tiao/games`，主分支 `main`。本地早期 ZIP 安装目录可能为 `~/Downloads/four-games-hub`，Git clone 目录通常为 `~/games`，以实际 `pwd` 为准。对应项目版本：Game Universe V1.7。
+> 仓库：`https://github.com/David-tiao/games`，主分支 `main`。本地早期 ZIP 安装目录可能为 `~/Downloads/four-games-hub`，Git clone 目录通常为 `~/games`，以实际 `pwd` 为准。对应项目版本：Game Universe V1.8。
 >
 > 原则：**实现、可选算法环境、未来规划分开记载**。本目录包含系统架构、算法专题、数据与安全、测试和运维；现有 `ROADMAP.md` 保留不覆盖。
 
@@ -40,9 +40,15 @@
 | 19 | [厨房大乱斗 · 开发与验收](19_厨房大乱斗_实施路线与验收.md) | **设计阶段**：V0.1 至 V1.0、测试不变量、多人同步、上线门槛 |
 | 原有 | [ROADMAP.md](ROADMAP.md) | 历史版本规划（原样保留） |
 
-## 规划中的第七款：厨房大乱斗（尚未开发）
+## 开源移植中的第七款：厨房大乱斗（源码已导入，未完成 Web 构建）
 
-设计资料已纳入 `docs/17–19`，包括 [原创厨房布局示意图](assets/kitchen-relay-concept.svg)。**这只是设计和技术规划，不代表第七款已上线**；当前大厅保持六个入口，等 V0.1 确实可玩并通过验收后才修改。
+已导入 [MIT 厨房游戏原版源码](../apps/kitchen-chaos/README.md)（源自 Taste from Another Place，C++/raylib 2D 单人），构建后经 `/play/kitchen/` 访问。完整自研双人厨房设计仍保留 `docs/17–19` 作为后续扩展目标；大厅六款已实现游戏加一张**明确标记“需构建”的厨房预览卡片**，不宣称当前支持双人/联网。
+
+## 导入的开源项目（Web 版待构建）
+
+- `apps/kitchen-chaos/vendor/taste-from-another-place/`：原版 MIT C++ 源码，30 个原文件 SHA 与上游固定提交一致；二进制素材不在仓库中，从上游下载。
+- `scripts/build-kitchen-open-source.sh`：下载固定提交原素材、构建 raylib Web 并使用 Emscripten 编译原版。
+- `/play/kitchen/`：如没有 Web 构建显示安装说明，有构建后显示原版游戏。
 
 ## 六款游戏实现速览
 

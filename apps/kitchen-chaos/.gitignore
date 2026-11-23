@@ -1,0 +1,5 @@
+vendor/taste-from-another-place/assets/
+vendor/taste-from-another-place/obj-web/
+vendor/taste-from-another-place/web/
+vendor/taste-from-another-place/raylib/
+.cache/

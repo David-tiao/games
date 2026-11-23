@@ -41,3 +41,9 @@ body.in-game.balls-mode .playerBar.expanded .playerLinks{flex-wrap:wrap;justify-
 
 /* V1.6: neon stickman basketball, sixth world. */
 .basketball .symbol{font-size:88px;color:#ffd0a4;text-shadow:0 0 30px #ffad73a8,0 0 55px #9bdcff55}
+
+/* MIT-licensed upstream port: preview until the actual WebAssembly game is built. */
+.kitchen .cardArt{background:radial-gradient(circle at 46% 58%,#ffbe7470,transparent 56%),linear-gradient(130deg,#634032,#162437)}
+.kitchen .symbol{font-size:84px;filter:drop-shadow(0 0 16px #ffab4b77)}
+.kitchen .cardTag{color:#ffdfb1}
+.kitchen.beta{border-style:dashed;border-color:#d1a77675}
