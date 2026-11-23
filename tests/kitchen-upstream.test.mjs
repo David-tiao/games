@@ -46,24 +46,26 @@ test('binary assets and native toolchain cache are intentionally untracked',()=>
  assert.match(ignore,/obj-web\//);
  assert.match(ignore,/\.cache\//);
 });
-test('gateway only opens the real WebAssembly build or truthful setup page',()=>{
+test('gateway serves the playable kitchen directly and keeps upstream separately',()=>{
  const server=read('hub/server.mjs');
  assert.match(server,/p==='\/play\/kitchen'/);
- assert.match(server,/existsSync\(path\.join\(kitchenWeb,'index\.html'\)\)/);
- assert.match(server,/\/setup\.html/);
+ assert.match(server,/staticFile\(req,res,kitchenRoot,'\/index\.html'\)/);
+ assert.match(server,/p==='\/play\/kitchen\/upstream'/);
  assert.match(server,/\.wasm':'application\/wasm'/);
  assert.match(server,/p\.startsWith\('\/play\/kitchen\/'\)/);
 });
-test('lobby has six playable cards plus an accurately labelled seventh preview',()=>{
+test('lobby has seven playable cards including the original cooking game',()=>{
  const html=read('hub/public/index.html'),js=read('hub/public/assets/main.js');
  assert.equal((html.match(/class="gamecard /g)||[]).length,7);
- assert.match(html,/07 \/ PREVIEW/);
- assert.match(html,/MIT 原版源码 · 需先构建/);
+ assert.match(html,/07 \/ PLAY/);
+ assert.match(html,/原创小游戏 · 单人 \/ 同屏双人/);
  assert.match(js,/kitchen:\{play:'\/play\/kitchen\/'/);
 });
-test('design documentation and source integration are clearly distinguished',()=>{
+test('native browser game and the MIT upstream port remain distinct',()=>{
  const doc=read('apps/kitchen-chaos/README.md');
- assert.match(doc,/WebAssembly and assets need building/);
+ assert.match(doc,/single-player/);
  assert.match(doc,/not a reimplementation/);
+ assert.match(doc,/WebAssembly and assets need building/);
  assert.match(read('apps/kitchen-chaos/setup.html'),/尚未构建/);
+ assert.match(read('apps/kitchen-chaos/index.html'),/厨房大乱斗/);
 });
