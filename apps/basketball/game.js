@@ -1,4 +1,4 @@
-import {COURT,createGame,stepGame,shootBall,passBall,trySteal,tryBlockShot,switchPlayer,bestPassTarget,getShotInfo,distance} from './engine.mjs';
+import {COURT,createGame,stepGame,shootBall,finishAtRim,tryCrossover,passBall,trySteal,tryBlockShot,switchPlayer,bestPassTarget,getShotInfo,distance} from './engine.mjs';
 import {drawStickman,getStickPose} from './stickman.mjs';
 const canvas=document.getElementById('court'),ctx=canvas.getContext('2d');
 const $=id=>document.getElementById(id);
@@ -14,7 +14,9 @@ const lessons=[
  ['防守与抢断','Steals and defense','没有球权时靠近持球对手按 K 尝试抢断。防守队友会自动贴近进攻球员。','Without the ball, press K near the carrier to attempt a steal. Teammates defend automatically.'],
  ['加速与体力','Sprint and stamina','按住 Shift 加速消耗体力，松开后逐渐恢复。不要整场无脑加速。','Hold Shift to sprint at the cost of stamina. Recover by moving normally.'],
  ['AI 无球跑位','AI spacing','队友会根据球权站到不同进攻区域；防守者根据持球威胁与队友位置回防。','Teammates spread on offense; defenders match threats and contest the ball.'],
- ['命中率模型','Shot probability model','模型考虑投篮距离、干扰等级、蓄力时机及球员能力。显示数值是游戏内预测，不是现实 NBA 统计。','The model combines range, contest, timing and skill. It is an in-game estimate, not an NBA statistic.']
+ ['命中率模型','Shot probability model','模型考虑投篮距离、干扰等级、蓄力时机及球员能力。显示数值是游戏内预测，不是现实 NBA 统计。','The model combines range, contest, timing and skill. It is an in-game estimate, not an NBA statistic.'],
+ ['篮下上篮与扣篮','Layups and dunks','持球靠近进攻篮筐按 L：较远处上篮，近距离且体力充足、防守不过于拥挤时扣篮。得分均为 2 分。','Press L near the offensive hoop: lay up from farther out or dunk when close and fresh. Both score two points.'],
+ ['运球变向','Crossover footwork','持球按 C 执行变向，短暂加速并可能晃开近身防守者。变向消耗体力，且有冷却时间。','Press C with the ball to crossover. Gain a burst and potentially stun a close defender; costs stamina and has a cooldown.']
 ];
 function savePrefs(){try{localStorage.setItem('court-master.preferences',JSON.stringify({lang,theme,difficulty}));}catch{}}
 function translate(){document.documentElement.lang=lang==='zh'?'zh-CN':'en';document.querySelectorAll('[data-zh][data-en]').forEach(el=>{el.textContent=el.dataset[lang];});$('lang').textContent=lang==='zh'?'中 / EN':'EN / 中';$('difficulty').textContent='AI · '+({rookie:L('新手','Easy'),normal:L('标准','Normal'),pro:L('高手','Hard')}[difficulty]);$('pause').textContent=game.status==='paused'?L('▶ 继续','▶ Resume'):L('⏸ 暂停','⏸ Pause');document.body.classList.toggle('theme-night',theme==='night');if(!$('drawer').hidden)updateDrawer();savePrefs();}
@@ -22,9 +24,9 @@ function openDrawer(which){drawMode=which;$('drawer').hidden=false;$('shade').hi
 function closeDrawer(){$('drawer').hidden=true;$('shade').hidden=true;}
 function updateDrawer(){
  const body=$('drawerBody');
- $('drawerTitle').textContent=drawMode==='lab'?L('篮球算法实验室','Basketball Algorithm Lab'):L('篮球学院 · 8 张战术卡','Basketball Academy · 8 Lessons');
+ $('drawerTitle').textContent=drawMode==='lab'?L('篮球算法实验室','Basketball Algorithm Lab'):L('篮球学院 · 10 张战术卡','Basketball Academy · 10 Lessons');
  if(drawMode==='academy'){
-  body.innerHTML='<p>'+L('本阶段提供战术与数学知识卡；正式互动课程将在后续扩展。','V0.3 offers strategy cards; interactive drills arrive in a later release.')+'</p>'+lessons.map((v,i)=>'<button class="lesson"><b>'+(i+1)+'. '+(lang==='zh'?v[0]:v[1])+'</b><small>'+(lang==='zh'?v[2]:v[3])+'</small></button>').join('');
+  body.innerHTML='<p>'+L('本阶段提供战术与数学知识卡；正式互动课程将在后续扩展。','V0.4 offers strategy cards; interactive drills arrive in a later release.')+'</p>'+lessons.map((v,i)=>'<button class="lesson"><b>'+(i+1)+'. '+(lang==='zh'?v[0]:v[1])+'</b><small>'+(lang==='zh'?v[2]:v[3])+'</small></button>').join('');
   return;
  }
  const me=game.players.find(p=>p.id===game.controlled),info=getShotInfo(game,me.id);
@@ -33,6 +35,7 @@ function updateDrawer(){
  '<div class="stat"><span>'+L('距篮筐','Distance to hoop')+'</span><b>'+Math.round(info.distance)+' px</b></div>'+
  '<div class="stat"><span>'+L('防守干扰等级','Contest level')+'</span><b>'+info.contest+' / 2</b></div>'+
  '<div class="stat"><span>'+L('蓄力时机分','Timing score')+'</span><b>'+Math.round(info.timing*100)+'%</b></div>'+
+ '<div class="stat"><span>'+L('变向冷却','Crossover cooldown')+'</span><b>'+Math.ceil((me.crossoverCooldown||0)*10)/10+'s</b></div>'+
  '<div class="stat"><span>'+L('AI 难度','AI difficulty')+'</span><b>'+({rookie:L('新手','Easy'),normal:L('标准','Normal'),pro:L('高手','Hard')}[game.difficulty])+'</b></div>'+
  '<div class="stat"><span>'+L('投篮价值','Shot value')+'</span><b>'+info.points+' '+L('分','pt')+'</b></div>'+
  '<div class="stat"><span>'+L('游戏命中率预测','Game shot probability')+'</span><b>'+Math.round(info.probability*100)+'%</b></div>'+
@@ -51,6 +54,15 @@ function startShot(){if(charging||game.status!=='playing')return;
  charging=true;charge=0;
 }
 function releaseShot(){if(!charging)return;charging=false;const p=game.players.find(x=>x.id===game.controlled);if(game.ball.carrier===p.id)shootBall(game,p.id,charge);charge=0;}
+function finishMove(){
+ if(game.status!=='playing')return;
+ const id=game.controlled;
+ if(!finishAtRim(game,id))game.events.unshift(L('篮下终结：需要持球靠近对方篮筐，并保留足够体力。','Rim finish: carry the ball close to the hoop with enough stamina.'));
+}
+function crossoverMove(){
+ if(game.status!=='playing')return;
+ if(!tryCrossover(game,game.controlled))game.events.unshift(L('变向需要持球、至少 15 体力且冷却完毕。','Crossover needs possession, 15 stamina and no cooldown.'));
+}
 function passOrSteal(){
  if(game.status!=='playing')return;
  const me=game.players.find(p=>p.id===game.controlled);
@@ -58,7 +70,7 @@ function passOrSteal(){
  else if(game.ball.carrier)trySteal(game,me.id);
 }
 function reset(){game=createGame(Math.floor(Math.random()*1e9),{difficulty});charging=false;charge=0;keys.clear();$('result').hidden=true;closeDrawer();last=performance.now();}
-function down(e){if(['INPUT','TEXTAREA','BUTTON'].includes(e.target?.tagName))return;const k=e.key.toLowerCase();if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();if(k==='j'&&!keys.has('j'))startShot();if(k==='k'&&!keys.has('k'))passOrSteal();if(k===' '&&!keys.has(' '))switchPlayer(game);if(k==='p'&&!keys.has('p'))togglePause();keys.add(k);}
+function down(e){if(['INPUT','TEXTAREA','BUTTON'].includes(e.target?.tagName))return;const k=e.key.toLowerCase();if([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(k))e.preventDefault();if(k==='j'&&!keys.has('j'))startShot();if(k==='k'&&!keys.has('k'))passOrSteal();if(k==='l'&&!keys.has('l'))finishMove();if(k==='c'&&!keys.has('c'))crossoverMove();if(k===' '&&!keys.has(' '))switchPlayer(game);if(k==='p'&&!keys.has('p'))togglePause();keys.add(k);}
 function up(e){const k=e.key.toLowerCase();if(k==='j')releaseShot();keys.delete(k);}
 document.addEventListener('keydown',down);document.addEventListener('keyup',up);window.addEventListener('blur',()=>{keys.clear();if(charging)releaseShot();});
 canvas.addEventListener('pointermove',e=>{const r=canvas.getBoundingClientRect();aim={x:(e.clientX-r.left)/r.width*1120,y:(e.clientY-r.top)/r.height*660};});
@@ -68,7 +80,7 @@ $('pause').onclick=togglePause;
 $('lang').onclick=()=>{lang=lang==='zh'?'en':'zh';translate();};
 $('theme').onclick=()=>{theme=theme==='wood'?'night':'wood';translate();};
 $('restart').onclick=reset;$('again').onclick=reset;
-$('switchBtn').onclick=()=>switchPlayer(game);$('passBtn').onclick=passOrSteal;
+$('switchBtn').onclick=()=>switchPlayer(game);$('passBtn').onclick=passOrSteal;$('finishBtn').onclick=finishMove;$('crossoverBtn').onclick=crossoverMove;
 const shoot=$('shootBtn');shoot.addEventListener('pointerdown',e=>{e.preventDefault();shoot.setPointerCapture?.(e.pointerId);startShot();});shoot.addEventListener('pointerup',releaseShot);shoot.addEventListener('pointercancel',()=>{charging=false;charge=0;});
 $('labBtn').onclick=()=>openDrawer('lab');$('academyBtn').onclick=()=>openDrawer('academy');$('closeDrawer').onclick=closeDrawer;$('shade').onclick=closeDrawer;
 const joystick=$('joystick'),hat=$('joyHat');
@@ -154,6 +166,11 @@ function gameCanvas(){
   ctx.beginPath();ctx.arc(e.x,e.y,22+t*64,0,Math.PI*2);ctx.stroke();
   if(e.kind==='score'){ctx.fillStyle='#fff3b1';ctx.font='900 33px system-ui';ctx.textAlign='center';ctx.fillText('+'+e.points,e.x,e.y-30-t*60);}
   if(e.kind==='block'){ctx.fillStyle='#e4faff';ctx.font='900 20px system-ui';ctx.textAlign='center';ctx.fillText(L('封盖','BLOCK'),e.x,e.y-33-t*38);}
+  if(['dunk','layup','crossover'].includes(e.kind)){
+   ctx.fillStyle='#fff7d8';ctx.font='900 21px system-ui';ctx.textAlign='center';
+   const name={dunk:L('扣篮!','DUNK!'),layup:L('上篮!','LAYUP!'),crossover:L('变向!','CROSSOVER!')}[e.kind];
+   ctx.fillText(name,e.x,e.y-35-t*33);
+  }
   ctx.restore();
  }
 }

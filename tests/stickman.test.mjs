@@ -7,8 +7,8 @@ import {STICK_STATES,getStickPose,drawStickman} from '../apps/basketball/stickma
 import {createGame,shootBall,passBall,trySteal,tryBlockShot,stepGame,resolveCollisions} from '../apps/basketball/engine.mjs';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const p=(team=0)=>({id:team?'R1':'B1',team,n:0,x:350,y:330,vx:0,vy:0,stamina:100,action:null,impact:0});
-test('V0.3 exposes a complete 10-pose stickman animation vocabulary',()=>{
- assert.deepEqual([...STICK_STATES],['idle','run','dribble','aim','shoot','pass','steal','block','rebound','stagger']);
+test('V0.4 exposes a 13-pose stickman animation vocabulary',()=>{
+ assert.deepEqual([...STICK_STATES],['idle','run','dribble','aim','shoot','pass','steal','block','rebound','stagger','crossover','layup','dunk']);
 });
 test('idle and running poses are deterministic and animated by velocity/time',()=>{
  const actor=p();const idle=getStickPose(actor,{time:1});

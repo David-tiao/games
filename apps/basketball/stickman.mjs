@@ -1,9 +1,9 @@
-// Stickman Hoops V0.3: source-code-only 2.5D pose generation and Canvas skeleton renderer.
+// Stickman Hoops V0.4: source-code-only 2.5D pose generation and Canvas skeleton renderer.
 // All coordinates are relative to the player's existing court position.
 // The renderer never changes the basketball rules or collision geometry.
 const clamp=(x,min,max)=>Math.max(min,Math.min(max,x));
 const point=(x,y)=>({x,y});
-export const STICK_STATES=Object.freeze(['idle','run','dribble','aim','shoot','pass','steal','block','rebound','stagger']);
+export const STICK_STATES=Object.freeze(['idle','run','dribble','aim','shoot','pass','steal','block','rebound','stagger','crossover','layup','dunk']);
 export function getStickPose(player,{time=0,hasBall=false,charging=false}={}){
  const speed=clamp(Math.hypot(player.vx||0,player.vy||0)/220,0,1);
  const action=player.action?.elapsed<player.action?.duration?player.action:null;
@@ -12,8 +12,8 @@ export function getStickPose(player,{time=0,hasBall=false,charging=false}={}){
  const gait=Math.sin(phase),bounce=Math.abs(Math.sin(phase*1.15));
  const progress=action?clamp(action.elapsed/Math.max(.01,action.duration),0,1):0;
  const dir=Math.abs(player.vx||0)>90?Math.sign(player.vx):(player.team===0?1:-1);
- const airborne=['shoot','block','rebound'].includes(state);
- const jump=airborne?(state==='block'?23:state==='rebound'?19:15)*Math.sin(Math.PI*progress):0;
+ const airborne=['shoot','block','rebound','layup','dunk'].includes(state);
+ const jump=airborne?(state==='dunk'?32:state==='layup'?24:state==='block'?23:state==='rebound'?19:15)*Math.sin(Math.PI*progress):0;
  const impact=clamp(player.impact||0,0,1);
  const lean=clamp((player.vx||0)*.018,-5,5)+impact*Math.sin(time*25+(player.n||0))*6;
  const idle=Math.sin((time||0)*2+(player.n||0)*1.6)*.8;
@@ -46,6 +46,33 @@ export function getStickPose(player,{time=0,hasBall=false,charging=false}={}){
   handL=point(neck.x-16,-45-jump);handR=point(neck.x+16,-45-jump);
   kneeL=point(hip.x-9,hip.y+4);kneeR=point(hip.x+9,hip.y+4);
   footL=point(hip.x-13,25-jump);footR=point(hip.x+13,25-jump);
+ }else if(state==='layup'){
+  // A one-handed soft finish with a raised inside knee.
+  if(dir>0){elbowR=point(neck.x+13,-24-jump);handR=point(neck.x+22,-43-jump);
+   elbowL=point(neck.x-18,0-jump);handL=point(neck.x-24,5-jump);}
+  else{elbowL=point(neck.x-13,-24-jump);handL=point(neck.x-22,-43-jump);
+   elbowR=point(neck.x+18,0-jump);handR=point(neck.x+24,5-jump);}
+  kneeL=point(hip.x-12,hip.y+1-jump);footL=point(hip.x-16,22-jump);
+  kneeR=point(hip.x+12,hip.y+8-jump);footR=point(hip.x+17,26-jump);
+ }else if(state==='dunk'){
+  // Two hands travel above the head at the apex of the jump.
+  elbowL=point(neck.x-8,-29-jump);elbowR=point(neck.x+8,-29-jump);
+  handL=point(neck.x-10,-53-jump);handR=point(neck.x+10,-53-jump);
+  kneeL=point(hip.x-15,hip.y+8-jump);kneeR=point(hip.x+13,hip.y+2-jump);
+  footL=point(hip.x-24,26-jump);footR=point(hip.x+20,22-jump);
+ }else if(state==='crossover'){
+  // The ball switches hands halfway through; the lead leg steps sideways.
+  const lead=progress<.5?dir:-dir;
+  ball=point(lead*24,9+Math.sin(Math.PI*progress)*4-jump);
+  ballLift=5;
+  elbowL=point(-13,-2-jump);elbowR=point(13,-2-jump);
+  handL=point(-25,7-jump);handR=point(25,7-jump);
+  if(lead>0)handR=point(ball.x-2,ball.y-9);
+  else handL=point(ball.x+2,ball.y-9);
+  kneeL=point(hip.x-14-progress*7,hip.y+7);
+  kneeR=point(hip.x+14+progress*7,hip.y+7);
+  footL=point(hip.x-19-progress*8,26-jump);
+  footR=point(hip.x+19+progress*8,26-jump);
  }else if(state==='steal'){
   if(dir>0){elbowR=point(20,-8-jump);handR=point(39,-16-jump);}
   else{elbowL=point(-20,-8-jump);handL=point(-39,-16-jump);}

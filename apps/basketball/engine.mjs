@@ -1,4 +1,4 @@
-// Court Master V0.3: game rules with deterministic, renderer-only stickman action cues.
+// Stickman Hoops V0.4: arcade layups, dunks and crossovers with deterministic rule/state transitions.
 export const COURT = Object.freeze({x:55,y:72,w:1010,h:516,hoopLeft:108,hoopRight:1012,cy:330});
 export const PLAYER_RADIUS=19;
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -7,7 +7,7 @@ const hoop=team=>({x:team===0?COURT.hoopRight:COURT.hoopLeft,y:COURT.cy});
 function random(s){s.seed=(Math.imul(1664525,s.seed)+1013904223)>>>0;return s.seed/4294967296;}
 function message(s,text){s.events.unshift(text);if(s.events.length>8)s.events.pop();}
 function player(s,id){return s.players.find(p=>p.id===id);}
-const assign=(team,n,x,y)=>({id:(team===0?'B':'R')+(n+1),team,n,x,y,vx:0,vy:0,skill:0.75+n*0.02,stamina:100,cooldown:0,action:null,impact:0});
+const assign=(team,n,x,y)=>({id:(team===0?'B':'R')+(n+1),team,n,x,y,vx:0,vy:0,skill:0.75+n*0.02,stamina:100,cooldown:0,crossoverCooldown:0,burstTime:0,stunTime:0,action:null,impact:0});
 function setAction(p,kind,duration){if(p)p.action={kind,elapsed:0,duration};}
 export function createGame(seed=2026, options={}){
  const difficulty=['rookie','normal','pro'].includes(options.difficulty)?options.difficulty:'normal';
@@ -35,7 +35,7 @@ function inbound(s,team){
   const home=p.team===0?335:785;
   p.x=home+(p.n===0?0:p.n===1?-25:25);
   p.y=p.n===0?330:p.n===1?222:441;
-  p.cooldown=0.5;p.vx=0;p.vy=0;
+  p.cooldown=0.5;p.vx=0;p.vy=0;p.crossoverCooldown=0;p.burstTime=0;p.stunTime=0;p.action=null;
  }
  setCarrier(s,(team===0?'B':'R')+'1');
  // Keep the user's selected blue player across baskets.
@@ -51,6 +51,47 @@ export function shootBall(s,id,release=0.78){
  s.shots.unshift({id,probability:info.probability,made,points:info.points});s.shots.length=Math.min(s.shots.length,12);
  message(s,id+' 投篮 '+Math.round(info.probability*100)+'% · '+info.points+' 分');
  s.effects.push({kind:'release',x:p.x,y:p.y,age:0,duration:0.45,team:p.team});return true;
+}
+/** Close-range controlled finish. Layups work farther out; uncontested dunks require stamina. */
+export function finishAtRim(s,id){
+ const p=player(s,id);
+ if(!p||s.status!=='playing'||s.ball.carrier!==id||s.ball.flight)return false;
+ const target=hoop(p.team),d=distance(p,target);
+ if(d>170||p.stamina<16)return false;
+ const info=getShotInfo(s,id,0.78);
+ const dunk=d<=91&&p.stamina>=35&&info.contest<2;
+ const style=dunk?'dunk':'layup';
+ const probability=clamp(dunk?0.92-info.contest*0.085:
+    0.90-d*.0013-info.contest*.13+(p.skill-.75)*.17,0.16,0.97);
+ const made=random(s)<probability;
+ p.stamina=clamp(p.stamina-(dunk?28:13),0,100);
+ const flight={kind:'shot',style,from:{x:p.x,y:p.y},to:target,elapsed:0,
+  duration:dunk?.46:.73,arcHeight:dunk?94:76,made,blocked:false,
+  shooter:id,points:2,probability};
+ s.ball.flight=flight;s.ball.carrier=null;
+ s.lastShot={...info,shooter:id,made,probability,points:2,style};
+ s.shots.unshift({id,probability,made,points:2,style});s.shots.length=Math.min(s.shots.length,12);
+ setAction(p,style,dunk?.84:.80);
+ s.effects.push({kind:style,x:p.x,y:p.y,age:0,duration:.7,team:p.team});
+ message(s,id+(dunk?' 起飞扣篮！':' 突破上篮！')+' '+Math.round(probability*100)+'%');
+ return true;
+}
+/** A brief offensive speed burst with a cooldown and proximity-limited defender feint. */
+export function tryCrossover(s,id){
+ const p=player(s,id);
+ if(!p||s.status!=='playing'||s.ball.carrier!==id||s.ball.flight||
+    p.crossoverCooldown>0||p.stunTime>0||p.stamina<15)return false;
+ p.stamina=clamp(p.stamina-15,0,100);
+ p.crossoverCooldown=1.35;p.burstTime=.48;
+ setAction(p,'crossover',.46);
+ // Any defender actually within arm's reach may briefly lose their step.
+ for(const q of s.players){
+  if(q.team===p.team||q.stunTime>0||distance(q,p)>=81)continue;
+  if(random(s)<.64){q.stunTime=.36;setAction(q,'stagger',.36);q.impact=.8;}
+ }
+ s.effects.push({kind:'crossover',x:p.x,y:p.y,age:0,duration:.55,team:p.team});
+ message(s,id+' 运球变向！');
+ return true;
 }
 /** A timed, local defensive action: only a nearby player can block an early release. */
 export function tryBlockShot(s,defenderId){
@@ -93,7 +134,7 @@ export function bestPassTarget(s,id,aim=null){
 }
 export function trySteal(s,id){
  const defender=player(s,id),carrier=player(s,s.ball.carrier);
- if(!defender||!carrier||defender.team===carrier.team||defender.cooldown>0||distance(defender,carrier)>55)return false;
+ if(!defender||!carrier||defender.team===carrier.team||(defender.cooldown>0||defender.stunTime>0)||distance(defender,carrier)>55)return false;
  defender.cooldown=1.1;setAction(defender,'steal',0.42);
  const chance=defender.team===1?(s.difficulty==='pro'?.51:s.difficulty==='rookie'?.23:.39):.44;
  if(random(s)<chance){setCarrier(s,id);s.shotClock=24;message(s,id+' 抢断成功！');s.effects.push({kind:'steal',x:defender.x,y:defender.y,age:0,duration:0.5,team:defender.team});return true;}
@@ -131,6 +172,7 @@ function move(p,tx,ty,dt,speed){
 function aiPlayers(s,dt){
  const carrier=player(s,s.ball.carrier),flight=s.ball.flight,ball=s.ball;
  for(const p of s.players){
+  if((p.stunTime||0)>0)continue;
   // AI difficulty affects the opponent, not the player's automatic teammates.
   const difficultySpeed=p.team===1?(s.difficulty==='pro'?1.13:s.difficulty==='rookie'?.88:1):1;
   if(p.id===s.controlled)continue;
@@ -175,6 +217,9 @@ export function stepGame(s,dt,input={x:0,y:0,turbo:false}){
  for(const p of s.players){
   if(p.action){p.action.elapsed+=dt;if(p.action.elapsed>=p.action.duration)p.action=null;}
   p.impact=Math.max(0,(p.impact||0)-dt*2.2);
+  p.crossoverCooldown=Math.max(0,(p.crossoverCooldown||0)-dt);
+  p.burstTime=Math.max(0,(p.burstTime||0)-dt);
+  p.stunTime=Math.max(0,(p.stunTime||0)-dt);
  }
  s.time=Math.max(0,s.time-dt);
  if(s.time===0&&s.ball.flight?.kind!=='shot'){s.status='finished';message(s,'比赛结束');return s;}
@@ -187,7 +232,7 @@ export function stepGame(s,dt,input={x:0,y:0,turbo:false}){
  const prior=s.players.map(p=>({x:p.x,y:p.y}));
  const me=player(s,s.controlled);
  if(me){const x=Number(input.x)||0,y=Number(input.y)||0,len=Math.hypot(x,y);
-  if(len>0){const turbo=!!input.turbo&&me.stamina>4;const speed=turbo?255:185;me.x=clamp(me.x+x/len*speed*dt,COURT.x+17,COURT.x+COURT.w-17);me.y=clamp(me.y+y/len*speed*dt,COURT.y+17,COURT.y+COURT.h-17);me.stamina=clamp(me.stamina+(turbo?-34:15)*dt,0,100);}
+  if(len>0){const turbo=!!input.turbo&&me.stamina>4;const speed=me.stunTime>0?85:(me.burstTime>0?322:(turbo?255:185));me.x=clamp(me.x+x/len*speed*dt,COURT.x+17,COURT.x+COURT.w-17);me.y=clamp(me.y+y/len*speed*dt,COURT.y+17,COURT.y+COURT.h-17);me.stamina=clamp(me.stamina+(turbo?-34:15)*dt,0,100);}
   else me.stamina=clamp(me.stamina+22*dt,0,100);
  }
  aiPlayers(s,dt);
@@ -242,7 +287,7 @@ export function stepGame(s,dt,input={x:0,y:0,turbo:false}){
   // AI opponents can contest an airborne shot only when physically close and quick enough.
   const f=s.ball.flight;
   if(f?.kind==='shot'&&!f.blocked)for(const p of s.players){
-   if(p.id===s.controlled||p.team===player(s,f.shooter)?.team)continue;
+   if(p.id===s.controlled||p.stunTime>0||p.team===player(s,f.shooter)?.team)continue;
    if(distance(p,player(s,f.shooter))<51&&random(s)<(s.difficulty==='pro'?.52:s.difficulty==='rookie'?.08:.22)){
     tryBlockShot(s,p.id);break;
    }
