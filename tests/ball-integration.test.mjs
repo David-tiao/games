@@ -7,15 +7,18 @@ import {fileURLToPath} from 'node:url';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const file=p=>fs.readFileSync(path.join(root,p),'utf8');
 
-test('five-world lobby exposes full-screen neon ball play and academy entry',()=>{
+test('six-world lobby exposes basketball and neon ball play and academy entries',()=>{
   const html=file('hub/public/index.html');
   const js=file('hub/public/assets/main.js');
   const css=file('hub/public/assets/style.css');
-  for(const id of ['go','gomoku','star','mines','balls'])assert.match(js,new RegExp(`${id}:\\{play:`));
+  for(const id of ['go','gomoku','star','mines','balls','basketball'])assert.match(js,new RegExp(`${id}:\\{play:`));
   assert.match(html,/data-game="balls" data-view="play"/);
   assert.match(html,/data-game="balls" data-view="learn"/);
-  assert.match(html,/五个世界/);
-  assert.match(html,/05 \\<small|05 <small/);
+  assert.match(html,/六个世界/);
+  assert.match(html,/06 <small/);
+  assert.match(html,/data-game="basketball" data-view="play"/);
+  assert.match(html,/data-game="basketball" data-view="learn"/);
+  assert.equal((html.match(/class="gamecard /g)||[]).length,6);
   assert.match(css,/body\.in-game \.frameShell\{[^}]*inset:0/);
   assert.match(css,/\.balls \.cardArt/);
 });

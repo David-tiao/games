@@ -9,7 +9,7 @@ if command -v ss >/dev/null 2>&1 && ss -lnt "( sport = :$GAME_PORT )" | grep -q 
   exit 1
 fi
 if (( NODE_MAJOR < 20 ));then echo 'Node.js 版本过低，请升级到 20 或更新。';exit 1;fi
-echo '🎮 五合一游戏大厅 V1.7 · 检查旧账号数据...'
+echo '🎮 六合一游戏大厅 V1.7 · 检查旧账号数据...'
 ./scripts/migrate-old.sh
 ./scripts/migrate-ball-weights.sh
 for game in go-online gomoku-online;do
