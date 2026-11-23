@@ -57,4 +57,4 @@ make -C "$UP" build-web \
 if [[ ! -s "$UP/web/index.html" || ! -s "$UP/web/index.js" || ! -s "$UP/web/index.wasm" ]]; then
   echo "[kitchen] Expected WebAssembly output is missing. Read build log." >&2; exit 1
 fi
-echo "Original game is ready: http://localhost:3300/play/kitchen/"
+echo "MIT upstream game is ready: http://localhost:3300/play/kitchen/upstream/"
