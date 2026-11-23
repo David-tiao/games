@@ -12,7 +12,7 @@ Game Universe is a multi-game project built around interactive play, approachabl
 
 - [Games at a glance](#games-at-a-glance)
 - [Quick start](#quick-start)
-- [Kitchen Chaos: cooperative cooking](#-kitchen-chaos-cooperative-cooking)
+- [Kitchen Chaos: cooperative cooking](#kitchen-chaos-cooperative-cooking)
 - [Other games](#other-games)
 - [Architecture and technology](#architecture-and-technology)
 - [Project layout](#project-layout)
@@ -98,7 +98,7 @@ If the project lives somewhere other than `~/games`, change to that directory in
 
 This creates `~/.local/bin/games` pointing to the current checkout. When that directory is in `PATH`, use `games` to launch the hub from any working directory.
 
-## 🍳 Kitchen Chaos: cooperative cooking
+## Kitchen Chaos: cooperative cooking
 
 **[Open the game](http://localhost:3300/play/kitchen/)** · **[Gameplay guide](apps/kitchen-chaos/guide.html)** · **[Full kitchen documentation](apps/kitchen-chaos/README.md)**
 
@@ -295,7 +295,7 @@ For attribution and a detailed distinction between the two implementations, see 
 | --- | --- | --- |
 | `PORT` | `3300` | Public-facing hub HTTP port |
 | `HOST` | `0.0.0.0` | Address on which the hub listens; set `127.0.0.1` to restrict to the local machine |
-| `BALL_PYTHON` | Kitchen-independent Python venv path | Override the optional ball-tracker Python executable |
+| `BALL_PYTHON` | `apps/neon-ball-lab/.venv/bin/python` | Override the optional ball-tracker Python executable |
 | `BALL_TRACKING_MODE` | `hybrid` | Optional tracker: `hybrid`, `classical`, or `yolo` |
 | `CORS_ORIGINS` | Service-specific | Optional origin restrictions for services that support this setting |
 
