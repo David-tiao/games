@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#101a29">
+  <title>厨房大乱斗 · Kitchen Chaos Lab</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main class="app">
+    <header class="topbar">
+      <a class="back" href="/">← 返回游戏大厅</a>
+      <span class="brand">🍳 KITCHEN CHAOS <span>LAB</span></span>
+      <div class="top-actions">
+        <button id="pauseBtn" title="暂停或继续（P）">⏸ 暂停</button>
+        <button id="restartBtn" title="重新开始">↻ 重开</button>
+      </div>
+    </header>
+    <section class="dashboard" aria-label="营业状态">
+      <div class="stat"><span>营业倒计时</span><strong id="time">02:30</strong></div>
+      <div class="stat"><span>本局得分</span><strong id="score">0</strong></div>
+      <div class="stat"><span>已完成 / 超时</span><strong id="progress">0 / 0</strong></div>
+      <div class="stat"><span>连续上菜</span><strong id="combo">×0</strong></div>
+    </section>
+    <section class="layout">
+      <aside class="orders-panel">
+        <div class="panel-heading"><span>🧾 正在排队</span><small>ORDER TICKETS</small></div>
+        <div id="orders" class="orders"></div>
+        <div class="recipe-help">
+          <h3>📒 今日菜谱</h3>
+          <div class="recipe"><strong>🥗 双蔬沙拉</strong><span>🥬 生菜＋🍅 番茄 → 分别切好 → 放入餐盘</span></div>
+          <div class="recipe"><strong>🍲 蘑菇汤</strong><span>🍄 蘑菇＋🧅 洋葱 → 切好 → 入锅煮 6 秒 → 装盘</span></div>
+        </div>
+      </aside>
+      <section class="board-wrap">
+        <div class="board-top"><span>🍽️ STATION 01 / 新手食堂</span><span id="mode">本地双人合作</span></div>
+        <div class="canvas-wrap">
+          <canvas id="game" width="768" height="528" aria-label="厨房俯视地图，两名厨师通过键盘移动和工作"></canvas>
+          <div id="overlay" class="overlay">
+            <div class="dialog">
+              <div class="eyebrow">WELCOME TO THE KITCHEN</div>
+              <div class="hero">👩‍🍳 🍳 👨‍🍳</div>
+              <h1>厨房大乱斗</h1>
+              <p>接单、切菜、炖汤、装盘、上菜！在营业结束前尽量多得分。</p>
+              <div class="modes">
+                <button class="primary" id="soloBtn">单人练习</button>
+                <button class="primary orange" id="coopBtn">双人同屏</button>
+              </div>
+              <div class="hint">原创浏览器小游戏 · 不需安装 · 非官方《胡闹厨房》</div>
+            </div>
+          </div>
+        </div>
+        <div class="feedback" id="feedback" role="status" aria-live="polite">准备开业！</div>
+        <div class="touch" id="touchControls" aria-label="触屏单人控制">
+          <div class="dpad">
+            <button data-code="KeyW" class="up" aria-label="上">▲</button>
+            <button data-code="KeyA" class="left" aria-label="左">◀</button>
+            <button data-code="KeyS" class="down" aria-label="下">▼</button>
+            <button data-code="KeyD" class="right" aria-label="右">▶</button>
+          </div>
+          <div class="touch-actions">
+            <button data-code="KeyE">拿取 / 交互</button>
+            <button data-code="Space">按住切菜</button>
+          </div>
+        </div>
+      </section>
+      <aside class="players-panel">
+        <div class="panel-heading"><span>👥 厨师队伍</span><small>TEAM STATUS</small></div>
+        <div class="player-card blue"><strong>👨‍🍳 玩家 1</strong><span>移动：W A S D</span><span>交互：E</span><span>切菜：按住 Space</span><div class="hand" id="p1hand">👐 空手</div></div>
+        <div class="player-card coral" id="p2card"><strong>👩‍🍳 玩家 2</strong><span>移动：↑ ← ↓ →</span><span>交互：Enter</span><span>切菜：按住右 Shift</span><div class="hand" id="p2hand">👐 空手</div></div>
+        <div class="tips">
+          <h3>💡 操作提示</h3>
+          <p>厨师必须<strong>面朝相邻工作台</strong>。先按 E 放食材，再按住切菜键；切完空手按 E 取走。</p>
+          <p>中央 <strong>⭐ 装盘台</strong>需要先放空盘；可以通过 <strong>📦 传递台</strong>交换物品。</p>
+          <p>按 <kbd>P</kbd> 暂停。上菜越快，分数越高！</p>
+        </div>
+      </aside>
+    </section>
+    <footer>Kitchen Chaos Lab v0.1 · 原创 Canvas 玩法 · 旁边的原版 MIT 开源移植仍保留在源码目录 · <a href="https://github.com/David-tiao/games/tree/main/apps/kitchen-chaos">GitHub</a></footer>
+  </main>
+  <script type="module" src="./game.js"></script>
+</body>
+</html>
