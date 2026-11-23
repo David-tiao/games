@@ -1,57 +1,62 @@
-# 🎮 游戏宇宙 · Games Hub
+# 🎮 Game Universe — Games Hub
 
-> **七个可直接游玩的游戏入口**，包括原创本地双人《厨房大乱斗》；所有入口共用一个地址。可选的第三方厨房 C++ 原版另行构建。
+**Seven browser-based games. One launcher. One local server.**
 
-本仓库由原 `four-games-hub` 整理而来，文件夹与仓库统一命名为 `games`。对外只暴露一个端口（默认 `3300`），围棋、五子棋与可选的 Python 视觉追踪服务只在 `127.0.0.1` 的内部端口运行，再由大厅同源转发。
+Game Universe is a multi-game project built around interactive play, approachable controls, and explainable game logic. It brings board games, puzzles, a basketball simulator, an experimental computer-vision playground, and an **original cooperative cooking game** into one browser-based hub.
 
-## 七个世界
+**Current release: v1.9.0** · **Primary environment: Linux / Ubuntu** · **Default port: 3300** · **Node.js: 20+**
 
-| 入口 | 核心内容 | 教学与算法 |
+> **Project status:** The seven game entries are integrated into the hub. Features differ by game: Go and Gomoku offer online rooms; Kitchen Chaos supports **local** two-player cooperation only. A third-party C++ cooking game is preserved separately as an optional WebAssembly port and is **not** required to play Kitchen Chaos.
+
+## Table of contents
+
+- [Games at a glance](#games-at-a-glance)
+- [Quick start](#quick-start)
+- [Kitchen Chaos: cooperative cooking](#kitchen-chaos-cooperative-cooking)
+- [Other games](#other-games)
+- [Architecture and technology](#architecture-and-technology)
+- [Project layout](#project-layout)
+- [Development and testing](#development-and-testing)
+- [Optional Python ball tracking](#optional-python-ball-tracking)
+- [Optional upstream kitchen port](#optional-upstream-kitchen-port)
+- [Configuration and local-network access](#configuration-and-local-network-access)
+- [Troubleshooting](#troubleshooting)
+- [Privacy, security, and licensing](#privacy-security-and-licensing)
+- [Known limitations and roadmap](#known-limitations-and-roadmap)
+- [Release history](#release-history)
+
+## Games at a glance
+
+| # | Game | What you can play | Multiplayer status | Route |
+| --- | --- | --- | --- | --- |
+| 01 | **Go Academy** | Go on 9×9, 13×13, and 19×19 boards, interactive lessons, heuristic AI | Online rooms + AI practice | `/play/go/` |
+| 02 | **Gomoku** | Five-in-a-row matches, learning content, and computer opponents | Online rooms + AI practice | `/play/gomoku/` |
+| 03 | **Star Array: Resonance** | GF(2) grid-toggle logic puzzles, solvability and strategy | Single-player | `/play/star/` |
+| 04 | **Minesweeper Lab** | Adjustable boards, difficulty settings, logic-based hints | Single-player | `/play/mines/` |
+| 05 | **Neon Ball Lab** | Simulated ball motion and collisions with detection/tracking visualization | Interactive lab, not a multiplayer arena | `/play/balls/` |
+| 06 | **Stickman Hoops** | Top-down 3v3 basketball, ball handling, shooting, tactics, AI | Local player vs. AI | `/play/basketball/` |
+| 07 | **Kitchen Chaos Lab** | Prepare ingredients, chop, cook, plate, and serve timed orders | Solo or **two players on one keyboard** | `/play/kitchen/` |
+
+All routes above are relative to `http://localhost:3300` after starting the full hub. The home page is located at `/`.
+
+## Quick start
+
+### Requirements
+
+| Requirement | Needed for | Notes |
 | --- | --- | --- |
-| **围棋学堂** | 9/13/19 路棋盘、自由人机、真人联机房间 | 50 节课程、16 套方法论棋谱、可解释的启发式算法实验室 |
-| **五子棋** | 双人联机房间、独立人机练习 | 12 节课程、启发式评分、评分教学 |
-| **星阵：共振计划** | 3/5/7 路 GF(2) 翻转解谜 | 12 关、高斯消元、解空间维数与最少点击搜索 |
-| **扫雷实验室** | 自定义棋盘尺寸与雷数、三种难度 | 12 节课程、不偷看雷位的逻辑助手 |
-| **混沌光轨实验室** | 随机运动、1–8 球碰撞、霓虹长尾、检测/预测 | 10 节视觉追踪课程、α–β、OpenCV、Kalman、Hungarian MOT，可选训练 YOLO |
-| **火柴人篮球（V0.4）** | 2D 俯视角 3v3 人机、运球、传球、投篮、抢断、24 秒 | 13 种动作、上篮/扣篮、变向突破、10 张战术卡、投篮概率、碰撞与三档 AI 难度；**十人联机尚未实现** |
-| **厨房大乱斗（V0.1）** | 原创 2D 同屏双人合作，切菜、炖汤、装盘、倒计时接单 | 单人／双人键盘、两道配方、烧焦与订单超时、结算评分；联网仍在规划 |
+| **Node.js 20 or newer** | Main server and game hub | Verify with `node --version` |
+| **npm** (10+ recommended) | Installing/building Go and Gomoku clients | Verify with `npm --version` |
+| **Git** | Cloning and updating the repository | Also used by optional build helpers |
+| **Bash** | Automated launcher and installation scripts | Linux recommended; macOS may work; Windows users should use WSL |
+| **Modern browser** | Playing games | Chrome/Chromium or Firefox recommended |
+| **Internet access on first setup** | Installing missing npm packages | Go/Gomoku clients are built on startup |
+| Python 3, venv, OpenCV, NumPy, SciPy | **Optional** real ball tracking | Not needed for Kitchen Chaos or the default ball demo |
+| Emscripten + CMake + Make + raylib build | **Optional** third-party C++ kitchen WebAssembly port | Not needed for the original browser cooking game |
 
-## 🍳 厨房大乱斗：原创游戏已可直接游玩
+Ubuntu: install Git and basic tools using your package manager, and install a current Node.js 20+ distribution. The Node.js package in older Ubuntu repositories may be too old; verify the version before starting.
 
-**真正可玩的浏览器游戏现已接入大厅。** 无需 Emscripten、无需额外下载素材，打开 [http://localhost:3300/play/kitchen/](http://localhost:3300/play/kitchen/) 即可选择单人练习或双人同屏合作。
-
-- **厨师 1：** WASD 移动，E 交互，按住 Space 切菜。
-- **厨师 2：** 方向键移动，Enter 交互，按住右 Shift 切菜。
-- **目标：** 在 150 秒营业时间内完成🥗双蔬沙拉和🍲蘑菇汤等限时订单；用传递台协调、装盘台完成料理、服务台送餐，避免订单超时及汤烧焦。
-- **技术：** 原生 Canvas 2D + 独立可测试的 JavaScript 规则引擎；无第三方运行依赖。手机提供单人触控按钮。
-- **限制：** 目前支持单人、本地双人同键盘；在线多人和 AI 厨师尚未实现。
-
-另外，旧版导入的 [Taste from Another Place](https://github.com/mikegiannako/taste-from-another-place) MIT 原版 C++/raylib 源码**原样保留**在 apps/kitchen-chaos/vendor。它是单人游戏，不等于我们新写的双人玩法；想尝试其 WebAssembly 版本，可运行 bash scripts/build-kitchen-open-source.sh 并访问 /play/kitchen/upstream/。原版音频与美术不随仓库重新发布。详情见 [厨房项目 README](apps/kitchen-chaos/README.md)。
-
-> 混沌光轨是运动与视觉算法实验项目，不是已实现多人房间的竞技游戏。浏览器演示、经典视觉检测和训练后的 YOLO 是三种不同实现，界面中会明确区分。
-
-<p align="center">
-  <img src="apps/neon-ball-lab/preview_v4_final.png" alt="混沌光轨实验室预览" width="720">
-</p>
-
-## 技术栈
-
-- **入口网关**：Node.js 原生 `http` 服务器 + 同源反向代理 + WebSocket 升级转发（`hub/server.mjs`）
-- **围棋 / 五子棋前端**：React 18 + TypeScript + Vite
-- **实时对战**：Socket.IO
-- **大厅、课程与星阵**：原生 HTML / CSS / JavaScript ES 模块，零前端构建依赖
-- **可选视觉算法**：Python、NumPy、OpenCV、SciPy；可选 ultralytics / YOLO 训练
-
-## 快速开始
-
-### 环境要求
-
-- Node.js **>= 20**，npm **>= 10**（`start.sh` 会检查）
-- Linux 推荐；macOS 通常可用；Windows 建议 WSL
-- 首次启动需要联网安装围棋/五子棋前端依赖
-- 可选：Python 3，用于混沌光轨的本机视觉追踪
-
-### 一键启动
+### Install and run
 
 ```bash
 git clone https://github.com/David-tiao/games.git
@@ -59,138 +64,320 @@ cd games
 ./start.sh
 ```
 
-首次运行会：
+The launcher will:
 
-1. 检查 Node.js 版本与 `3300` 端口；
-2. 执行旧账号数据安全迁移检查（只复制，不删除）；
-3. 若缺少依赖，为 `apps/go-online` 和 `apps/gomoku-online` 执行 `npm install`；
-4. 构建这两个 React 客户端；
-5. 启动统一大厅，并拉起内部后端。
+1. Validate Node.js and check whether the selected hub port is already in use.
+2. Run non-destructive migration helpers for legacy account data and optional ball-model weights.
+3. Reuse existing dependencies when possible and install missing Go/Gomoku workspace dependencies.
+4. Build the Go and Gomoku frontends.
+5. Start the single-entry hub and its internal game backends; start the optional Python tracker only when its dependencies are available.
 
-启动后访问：
+Open **http://localhost:3300/** or go directly to **http://localhost:3300/play/kitchen/** for the cooking game.
 
-- 本机：<http://localhost:3300>
-- 同一局域网的朋友：<http://你的电脑IP:3300>
-
-如果端口被占用：
+To stop, press `Ctrl+C` in the terminal. To change the hub port:
 
 ```bash
 PORT=3301 ./start.sh
 ```
 
-停止服务：在启动终端按 `Ctrl+C`。
+### Update an existing clone
 
-### 可选的 `games` 启动命令
+```bash
+cd ~/games
+git pull --ff-only origin main
+./start.sh
+```
+
+If the project lives somewhere other than `~/games`, change to that directory instead. `git pull --ff-only` intentionally refuses to overwrite divergent local commits; resolve local modifications before updating.
+
+### Optional `games` shell command
 
 ```bash
 ./scripts/install-launcher.sh
 ```
 
-重新打开终端后即可用 `games` 启动大厅。它会写入 `~/.local/bin/games`，指向当前仓库的 `start.sh`。
+This creates `~/.local/bin/games` pointing to the current checkout. When that directory is in `PATH`, use `games` to launch the hub from any working directory.
 
-## 开发与验证
+## Kitchen Chaos: cooperative cooking
 
-```bash
-# 语法检查
-npm run check
+**[Open the game](http://localhost:3300/play/kitchen/)** · **[Gameplay guide](apps/kitchen-chaos/guide.html)** · **[Full kitchen documentation](apps/kitchen-chaos/README.md)**
 
-# 全套测试（根测试 + 围棋 + 五子棋 + 星阵）
-npm test
+Kitchen Chaos Lab v0.1 is a **separate, original Canvas 2D cooking game**, built for quick local sessions. Choose solo practice or two-player same-keyboard co-op at the title screen. No proprietary Overcooked artwork, source code, or music is included.
 
-# 单独运行星阵测试（无需 npm install）
-cd apps/star-array && npm test
+### Gameplay loop
+
+**Pick ingredients → chop them → cook if required → combine with a clean plate → serve the correct order before its timer expires.**
+
+| Recipe | Ingredients | Preparation | Base score | Order timer |
+| --- | --- | --- | --- | --- |
+| 🥗 Two-Vegetable Salad | Lettuce + tomato | Chop each for 2 seconds, add both to a plate | 100 | 50 s |
+| 🍲 Mushroom Soup | Mushroom + onion | Chop each, add to one stove, cook for about 6 seconds, then plate | 140 | 70 s |
+
+The kitchen uses a 16×11 tile map with ingredient crates, cutting boards, stoves, counters, a transfer station, a plating counter, a serving window, and a trash bin. Two orders appear initially; additional orders are scheduled approximately every 22 seconds, with up to three queued at once. A shift lasts **150 seconds**.
+
+Soup can burn if left on a stove too long after cooking. Correct deliveries earn a base score, a remaining-time bonus, and a small combo bonus. Expired tickets cost 20 points; trying to serve a dish for which no matching ticket exists costs 10 points.
+
+### Keyboard controls
+
+| Action | Player 1 | Player 2 |
+| --- | --- | --- |
+| Move | `W` `A` `S` `D` | Arrow keys |
+| Pick up / put down / use station | `E` | `Enter` |
+| Chop (hold while facing a loaded cutting board) | `Space` | **Right** `Shift` |
+| Pause / resume | `P` | `P` |
+
+**Important:** A chef must face a station from an adjacent floor tile. To chop, place a raw ingredient on a cutting board, face the board and hold the work key, then interact again with empty hands to retrieve the chopped ingredient. The assembly counter needs a clean plate before adding ingredients.
+
+Touch controls are provided for **solo play** on supported mobile browsers; two-player mode is designed for a shared desktop keyboard. The first release does **not** implement online cooking rooms, AI co-chefs, a campaign, or 3D environments.
+
+### What is actually implemented?
+
+- Original client UI: `apps/kitchen-chaos/index.html`, `style.css`, `game.js`.
+- Independent game rules: `apps/kitchen-chaos/shared/engine.mjs`.
+- Movement and collision, item/station interactions, recipes and cooking progress, ticket deadlines, score and end-of-shift summary.
+- Fixed 50 ms simulation steps and reproducible state evolution for a given seed and input sequence.
+- Automated tests covering item handling, cooking, scoring, co-op pickup exclusivity, map reachability, and determinism.
+
+The imported **Taste from Another Place** C++ game is retained under `apps/kitchen-chaos/vendor/` as a distinct MIT-licensed **single-player** project. It is **not** the codebase behind this new co-op browser game. See [Optional upstream kitchen port](#optional-upstream-kitchen-port).
+
+## Other games
+
+### Go Academy
+
+Go supports 9×9/13×13/19×19 boards, online matches and AI practice. The learning module contains 50 lessons and 16 methodology collections, plus an explainable heuristic analysis area. See `apps/go-online/` and the learning UI inside the game.
+
+### Gomoku
+
+Gomoku includes player-versus-player rooms and single-player practice against a heuristic opponent. A set of 12 lessons explains board patterns and scoring logic. See `apps/gomoku-online/` and `/learn/gomoku/`.
+
+### Star Array: Resonance
+
+A Lights Out–style mathematical puzzle game with 3×3, 5×5 and 7×7 modes. Its GF(2) modeling supports Gaussian elimination, solution-space reasoning and minimum-move exploration. See `apps/star-array/`.
+
+### Minesweeper Lab
+
+A customizable Minesweeper experience with difficulty presets, adjustable mine counts and a logic helper based on revealed tiles rather than hidden mine locations. A 12-lesson learning section is integrated into the hub. See `/play/mines/` and `/learn/mines/`.
+
+### Neon Ball Lab
+
+A motion and tracking playground featuring 1–8 moving, colliding balls, bright motion trails and visualization of detection, filtering and prediction. It offers browser-only pixel-based demonstration tracking and optional on-device Python/OpenCV + Kalman/Hungarian multi-object tracking. **Browser demonstration tracking is not YOLO**; actual YOLO inference requires a trained weight file and the appropriate optional dependencies.
+
+[Neon Ball Lab documentation](apps/neon-ball-lab/README.md)
+
+<p align="center">
+  <img src="apps/neon-ball-lab/preview_v4_final.png" alt="Neon Ball Lab visualization — an algorithm experiment, not the Kitchen Chaos game" width="720">
+</p>
+
+### Stickman Hoops
+
+A top-down 3v3 game against computer-controlled players. Includes passing, shooting, dribble moves, layups/dunks, clock rules, defensive actions and tactical presets. The current version is **local versus AI**, not online six-player or ten-player basketball. Source: `apps/basketball/`.
+
+## Architecture and technology
+
+The hub uses a single Node.js HTTP server (`hub/server.mjs`) and routes each game by path. Go and Gomoku run as separate internal processes. The hub proxies their HTTP and WebSocket traffic from the shared origin; the optional Python tracker also runs on a local internal port. Other games, including Kitchen Chaos, are served as browser assets.
+
+```text
+Browser
+   │
+   ▼
+Game Hub — Node.js HTTP server (default :3300)
+   ├── /                  → game selection and full-screen player
+   ├── /play/go/          → Go Node.js/Socket.IO backend
+   ├── /play/gomoku/      → Gomoku Node.js/Socket.IO backend
+   ├── /play/star/        → Star Array browser application
+   ├── /play/mines/       → Minesweeper page
+   ├── /play/balls/       → browser ball lab (+ optional Python API)
+   ├── /play/basketball/  → local Canvas basketball
+   └── /play/kitchen/     → local Canvas cooperative cooking
+        └── /upstream/    → optional built C++/raylib WebAssembly port
 ```
 
-如果安装了可选的 Python 追踪环境，还可以运行：
+**Technology by subsystem:**
 
-```bash
-./scripts/install-ball-tracker.sh
-apps/neon-ball-lab/.venv/bin/python -m pytest -q apps/neon-ball-lab/tests
-```
+- **Hub/server:** JavaScript ES modules, native Node.js `http`/`net` APIs and same-origin routing.
+- **Go/Gomoku clients:** React 18, TypeScript and Vite; multiplayer backends use Socket.IO.
+- **Kitchen/Basketball:** Browser Canvas 2D plus JavaScript game logic.
+- **Star Array, Minesweeper, educational pages:** HTML/CSS/JavaScript.
+- **Optional vision stack:** Python 3, NumPy, OpenCV, SciPy; Ultralytics/YOLO training is optional.
 
-## 可选的 Python 视觉追踪
+Game mechanics live in their respective apps, rather than in the lobby frontend.
 
-混沌光轨默认可直接在浏览器里演示亮白核心检测 + α–β 估计，不需要 Python。若需要本机 OpenCV + Kalman + Hungarian MOT：
-
-```bash
-./scripts/install-ball-tracker.sh
-```
-
-然后按 `Ctrl+C` 停止大厅并重新运行 `./start.sh`。大厅会在检测到 `apps/neon-ball-lab/.venv/bin/python` 且依赖齐全时自动启动追踪服务。
-
-可用环境变量：
-
-- `BALL_PYTHON`：指定 Python 解释器路径；
-- `BALL_TRACKING_MODE`：`hybrid`（默认）、`classical` 或 `yolo`；
-- `CORS_ORIGINS`：限制允许访问后端 API 的来源，公网部署时应设置。
-
-**注意**：仓库不包含训练好的 YOLO 权重。训练脚本、数据生成脚本与说明在 `apps/neon-ball-lab/` 中，需自行训练 `best.pt` 后才能启用真正的 YOLO 模式。未训练时系统会明确使用经典视觉检测，不会伪装成 YOLO。
-
-## 项目结构
+## Project layout
 
 ```text
 games/
-├── start.sh                     # 一键启动入口
-├── package.json                 # 顶层脚本：check / test / build
+├── README.md
+├── package.json                  # Root npm scripts
+├── start.sh                      # Recommended setup and startup command
 ├── hub/
-│   ├── server.mjs               # 唯一对外端口、反向代理、WebSocket 转发
-│   ├── public/                  # 大厅首页与全屏容器
-│   └── learning/                # 五子棋、扫雷、混沌光轨课程页面
+│   ├── server.mjs                # HTTP gateway, routing, process launch, proxy
+│   ├── public/                   # Main game lobby
+│   └── learning/                 # Browser lesson pages
 ├── apps/
-│   ├── go-online/               # 围棋源码 + 可选账号数据目录
-│   ├── gomoku-online/           # 五子棋源码 + 可选账号数据目录
-│   ├── basketball/              # 2D 篮球 3v3 / 投篮模型与战术卡
-│   │   ├── engine.mjs         # 可测试的纯 JS 比赛规则
-│   │   ├── game.js            # Canvas 渲染与控制
-│   │   ├── stickman.mjs       # 火柴人骨架、跑步/投篮/盖帽姿势
-│   │   ├── style.css          # 球场界面与手机交互
-│   │   └── index.html         # 篮球全屏入口
-│   ├── star-array/              # GF(2) 星阵解谜
-│   ├── kitchen-chaos/           # 原创双人烹饪游戏 + 保留 MIT 第三方源码
-│   └── neon-ball-lab/           # 混沌光轨源码、视觉算法与训练工具
-├── scripts/                     # 启动器、迁移、依赖安装脚本
-├── tests/                       # 大厅与课程页面测试
-├── docs/                        # 开发范围与版本规划
-└── data/                        # 迁移日志（运行时生成，不入库）
+│   ├── go-online/                # Go client, server, lessons and tests
+│   ├── gomoku-online/            # Gomoku client, server and tests
+│   ├── star-array/               # Puzzle client and GF(2) logic
+│   ├── basketball/               # Stickman gameplay and Canvas renderer
+│   ├── neon-ball-lab/            # Simulations, trackers and optional YOLO tools
+│   └── kitchen-chaos/
+│       ├── README.md             # Kitchen-specific guide
+│       ├── index.html            # Playable kitchen entry
+│       ├── guide.html            # Beginner guide
+│       ├── game.js               # Controls, Canvas rendering and HUD
+│       ├── style.css
+│       ├── shared/engine.mjs     # Cooking rules and deterministic updates
+│       └── vendor/              # Separate MIT-licensed C++/raylib project
+├── scripts/                      # Setup, data migration and optional builds
+├── tests/                        # Hub, gameplay and integration tests
+└── docs/                         # Design notes, research and future milestones
 ```
 
-## 数据、隐私与安全
+## Development and testing
 
-- 账号数据保存在 `apps/go-online/server/data/users.json` 和 `apps/gomoku-online/server/data/users.json`。这些文件**不会**提交到仓库；仓库只保留 `.gitkeep` 占位文件。
-- `.env` 与 `.env.*` 不会提交；`apps/go-online/.env.example` 和 `apps/gomoku-online/.env.example` 仅作为配置参考。项目通过环境变量读取配置，不会自动加载 `.env` 文件。
-- 默认仅适合局域网使用。若要把 `3300` 暴露到公网，请放在 HTTPS 反向代理之后，并增加认证、访问控制与 `CORS_ORIGINS` 限制。
-- 仓库不包含任何真实账号、密码哈希、API 密钥或训练好的模型权重。
+Run commands from the repository root unless otherwise indicated.
 
-## 已知限制
+| Command | Purpose |
+| --- | --- |
+| `./start.sh` | Full startup: dependency checks, Go/Gomoku builds, services |
+| `npm start` | Start hub directly; assumes required builds/dependencies are ready |
+| `npm run build` | Build Go and Gomoku clients |
+| `npm run check` | Syntax checks for main hub and selected browser modules |
+| `npm test` | Root tests plus Go, Gomoku, and Star Array test suites |
+| `npm run kitchen:test` | Kitchen game and upstream integration tests only |
+| `npm run kitchen:check` | Syntax check for upstream kitchen build script |
+| `npm run test:ball` | Ball lab Python tests, if Python dependencies are installed |
+| `npm run kitchen:build` | Optional C++/raylib WebAssembly build (requires Emscripten) |
 
-- 厨房目前是本地双人（同键盘），没有在线多人；其第三方 C++ 原版移植属于独立可选构建。
+Example for Kitchen Chaos:
 
-- 围棋与五子棋仍是两套独立账号，没有统一登录。
-- 星阵的十人实时协作、服务端 7 天存档尚未实现；当前只是单人核心玩法。
-- 火柴人篮球 V0.4 当前是 3v3 本地 AI 比赛，不能与朋友实时对战；未来再做联网与服务端比赛。
-- 混沌光轨的 100 分评分针对 #1 球的单目标评估，不是完整的 MOT 指标。
-- 所有 AI/老师提示均为启发式规则，不代表胜率或职业级最优变化。
-- 扫雷逻辑助手不会读取隐藏雷位，只基于已揭开的格子做约束推断。
+```bash
+npm run kitchen:test
+node --check apps/kitchen-chaos/game.js
+node --check apps/kitchen-chaos/shared/engine.mjs
+```
 
-## 版本历史
+Automated checks do not replace playing through a full round in your desktop browser. If modifying input handling, test both keyboard layouts and browser focus.
 
-- **V1.9（厨房大乱斗可玩版）**：原创 Canvas 本地双人/单人烹饪游戏上线，含沙拉/汤、切菜、烹饪、装盘、限时订单和分数结算；保留原版 MIT C++ 代码及可选构建入口。
+## Optional Python ball tracking
 
-- **V1.8（厨房开源项目移植预览）**：按 MIT 许可证导入 Taste from Another Place 原版 30 个 C++/raylib 源码及构建文件，保留版权，并增加原版媒体获取、Emscripten 构建适配、同域预览路由。不是已经完成的本地双人/联网游戏。
+The default browser demo does **not** require Python. To add local OpenCV detection and Kalman/Hungarian tracking on Ubuntu:
 
-- **V1.7（火柴人篮球 V0.4）**：新增 C 运球变向、L 上篮与扣篮、体力和冷却、近身防守晃动、13 种火柴人动作与 10 张战术卡；另补充开源合作厨房游戏调研。
+```bash
+# You may need the distribution's python3-venv package first.
+./scripts/install-ball-tracker.sh
 
-- **V1.6（火柴人篮球 V0.3）**：将篮球场内圆形球员升级为火柴人骨架，加入跑步/运球/蓄力/跳投/传球/抢断/封盖/篮板/受撞动作，保持原有 3v3 AI 与规则。
+# Restart the hub after installation.
+./start.sh
+```
 
-- **V1.5（篮球 V0.2）**：球员碰撞分离、近身时机封盖、抛物线及光效、篮板计时 14/24 秒、三档 AI 难度、暂停和终场出手规则。
+The installation script creates `apps/neon-ball-lab/.venv` and installs NumPy, OpenCV and SciPy. The hub detects the environment during startup. Supported settings are `BALL_TRACKING_MODE=classical`, `hybrid` (default), and `yolo`; using neural network inference requires compatible dependencies and weights.
 
-- **V1.4（篮球预览）**：新增《篮球：全场掌控》2D 3v3 人机、投篮概率和战术卡；不包含十人联网。
+The repository does **not** ship a trained YOLO model. Refer to [Neon Ball Lab's detailed README](apps/neon-ball-lab/README.md) for dataset generation, training and separate tracking modes. The old 100-point ball scoring model measures the tracked primary ball, not a general multi-object tracking benchmark.
 
-- **V1.3**：扫雷支持三种棋盘分别自定义雷数；保留全屏布局与课程。
-- **V1.2**：混沌光轨 V4.1 合并、10 节视觉追踪学院、可选 Python 同域代理、追踪会话隔离。
-- **V1.1**：沉浸式全屏与算法面板抽屉。
-- **V1.0**：四款游戏初次统一。
+## Optional upstream kitchen port
 
-## License
+The original co-op browser game requires **no C++ toolchain**. For comparison or educational exploration, the repository also preserves the MIT-licensed, **single-player** [Taste from Another Place](https://github.com/mikegiannako/taste-from-another-place) source (C++17 + raylib). This is a separate upstream project, credited and version-pinned.
 
-本仓库未指定开源许可证。若需分发或二次开发，请先补充合适的 LICENSE 文件。
+To build that project on Linux, install the [Emscripten SDK](https://emscripten.org/docs/getting_started/downloads.html) so `em++`, `emcmake` and `emmake` are on `PATH`, plus Git, CMake and Make:
+
+```bash
+bash scripts/build-kitchen-open-source.sh
+./start.sh
+```
+
+Once built, open `http://localhost:3300/play/kitchen/upstream/`. Until then, that route shows setup instructions. The build helper downloads original media at the pinned source revision; media rights must be reviewed separately before redistribution.
+
+For attribution and a detailed distinction between the two implementations, see [Kitchen Chaos documentation](apps/kitchen-chaos/README.md).
+
+## Configuration and local-network access
+
+| Variable | Default | Meaning |
+| --- | --- | --- |
+| `PORT` | `3300` | Public-facing hub HTTP port |
+| `HOST` | `0.0.0.0` | Address on which the hub listens; set `127.0.0.1` to restrict to the local machine |
+| `BALL_PYTHON` | `apps/neon-ball-lab/.venv/bin/python` | Override the optional ball-tracker Python executable |
+| `BALL_TRACKING_MODE` | `hybrid` | Optional tracker: `hybrid`, `classical`, or `yolo` |
+| `CORS_ORIGINS` | Service-specific | Optional origin restrictions for services that support this setting |
+
+For example, to run only on your own machine:
+
+```bash
+HOST=127.0.0.1 PORT=3300 ./start.sh
+```
+
+For LAN use, other devices on the same trusted network can open `http://YOUR-LAN-IP:3300` when the host firewall permits it. **This is not a production-hardened public deployment.** The default hub listens on all network interfaces; do not expose it directly to the internet without access control, HTTPS, an appropriate reverse proxy and security review.
+
+### Health endpoints
+
+- `GET /api/health` — hub and backend process registration.
+- `GET /api/services` — best-effort health checks for Go, Gomoku and optional ball service.
+
+A disabled Python tracker does not prevent the local cooking game from running.
+
+## Troubleshooting
+
+| Symptom | Check or fix |
+| --- | --- |
+| `node` not found or version below 20 | Install an actively supported Node.js 20+ runtime; confirm with `node -v` |
+| First startup fails during npm installation | Verify internet access, then retry `./start.sh`; inspect the Go/Gomoku npm error |
+| Port 3300 already in use | Stop the other process or run `PORT=3301 ./start.sh` |
+| Hub starts but Go/Gomoku does not load | Run `./start.sh` (not only `npm start`) to ensure client builds and dependencies exist |
+| Kitchen page is blank | Open it over HTTP, not `file://`; check browser console and `/play/kitchen/shared/engine.mjs` |
+| Keyboard input does not respond in the hub | Click inside the game frame to focus it; release keys when switching windows |
+| Cooking interaction does nothing | Stand **next to** and **face** the workstation; plates must be placed before assembling |
+| Ball tracker says unavailable | Default demo works without it; install the optional Python environment and restart |
+| Optional upstream kitchen route shows setup | The C++ WebAssembly port has not been built; run the separate build script |
+
+You can also play the original JavaScript cooking game without starting the multi-app hub:
+
+```bash
+cd apps/kitchen-chaos
+python3 -m http.server 8080
+# Open http://localhost:8080/
+```
+
+This static-server option runs Kitchen Chaos only; the other hub routes and multiplayer backends are not started.
+
+## Privacy, security, and licensing
+
+- Go and Gomoku store account state locally in their respective `server/data` directories. Runtime user data is excluded from source control; do not commit real account records.
+- `.env` files, generated builds, Python environments, and model weights are excluded by repository ignore rules. Never commit API keys, tokens, or credentials.
+- The interactive ball demo can run entirely in a browser. Optional local Python processing is not an external cloud inference service.
+- This project is intended for local development and trusted LAN play by default, **not** unattended public hosting.
+- **No repository-wide license is currently declared.** Public availability on GitHub does not automatically grant unrestricted redistribution or relicensing rights.
+- The independent third-party kitchen port retains its own MIT license and copyright notices. Its visual/audio assets may have separate rights. The imported MIT notice does **not** apply automatically to other folders.
+- Kitchen Chaos Lab is a genre-inspired independent work, **not affiliated with the commercial Overcooked franchise**; it does not bundle Overcooked content.
+
+## Known limitations and roadmap
+
+**Implemented now:** seven routed experiences; local Kitchen Chaos gameplay; Go and Gomoku online rooms; standalone puzzles; local basketball AI; browser ball lab and optional tracking.
+
+**Not yet implemented:** online Kitchen Chaos co-op, AI kitchen teammates, 1–4 player remote cooking rooms, kitchen map editor, unified Go/Gomoku account system, ten-player basketball, or production-grade internet deployment. In the ball lab, browser tracking, classical OpenCV tracking and separately trained YOLO are intentionally distinguished.
+
+**Suggested kitchen milestones:**
+
+1. **v0.2:** improved character and kitchen art, stronger input feedback, new recipes, guided tutorial, local AI teammate.
+2. **v0.3:** authoritative 2–4 player online rooms, synchronized timers, reconnect handling and multiplayer tests.
+3. **Later:** varied maps, environmental hazards, replay/analytics, accessibility and localization.
+
+These are development goals, not promises of shipped features.
+
+## Release history
+
+| Version | Highlights |
+| --- | --- |
+| **v1.9** | Original browser-playable **Kitchen Chaos v0.1** with local co-op, cooking stations, orders and scoring |
+| **v1.8** | Preserved MIT-licensed C++ cooking game's source and optional WebAssembly build path |
+| **v1.7** | Expanded Stickman Hoops controls, actions and tactics |
+| **v1.6–v1.4** | Incremental basketball features: animation, collisions, 3v3 AI and game rules |
+| **v1.3** | More Minesweeper customization |
+| **v1.2** | Neon Ball Lab v4.1 and optional local Python tracking |
+| **v1.1** | Immersive game UI and expandable algorithm panels |
+| **v1.0** | First unified multi-game hub |
+
+---
+
+**Repository:** [github.com/David-tiao/games](https://github.com/David-tiao/games)  
+**Start locally:** `./start.sh`  
+**Play the cooking game:** `http://localhost:3300/play/kitchen/`  
+**Open an issue:** [GitHub Issues](https://github.com/David-tiao/games/issues)
