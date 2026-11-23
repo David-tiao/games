@@ -1,4 +1,5 @@
 import {COURT,createGame,stepGame,shootBall,passBall,trySteal,tryBlockShot,switchPlayer,bestPassTarget,getShotInfo,distance} from './engine.mjs';
+import {drawStickman,getStickPose} from './stickman.mjs';
 const canvas=document.getElementById('court'),ctx=canvas.getContext('2d');
 const $=id=>document.getElementById(id);
 let difficulty='normal';let game=createGame(2026,{difficulty}),last=performance.now(),charge=0,charging=false,aim={x:870,y:330},drawMode='lab',lang='zh',theme='wood',lastUi=0,hasGesture=false;
@@ -23,7 +24,7 @@ function updateDrawer(){
  const body=$('drawerBody');
  $('drawerTitle').textContent=drawMode==='lab'?L('篮球算法实验室','Basketball Algorithm Lab'):L('篮球学院 · 8 张战术卡','Basketball Academy · 8 Lessons');
  if(drawMode==='academy'){
-  body.innerHTML='<p>'+L('本阶段提供战术与数学知识卡；正式互动课程将在后续扩展。','V0.1 offers strategy cards; interactive drills arrive in a later release.')+'</p>'+lessons.map((v,i)=>'<button class="lesson"><b>'+(i+1)+'. '+(lang==='zh'?v[0]:v[1])+'</b><small>'+(lang==='zh'?v[2]:v[3])+'</small></button>').join('');
+  body.innerHTML='<p>'+L('本阶段提供战术与数学知识卡；正式互动课程将在后续扩展。','V0.3 offers strategy cards; interactive drills arrive in a later release.')+'</p>'+lessons.map((v,i)=>'<button class="lesson"><b>'+(i+1)+'. '+(lang==='zh'?v[0]:v[1])+'</b><small>'+(lang==='zh'?v[2]:v[3])+'</small></button>').join('');
   return;
  }
  const me=game.players.find(p=>p.id===game.controlled),info=getShotInfo(game,me.id);
@@ -37,7 +38,8 @@ function updateDrawer(){
  '<div class="stat"><span>'+L('游戏命中率预测','Game shot probability')+'</span><b>'+Math.round(info.probability*100)+'%</b></div>'+
  '<div class="hint">'+L('概率使用距离、投篮能力、防守干扰和操作时机共同计算；这不是现实比赛数据，也不保证每球命中。','Probability is derived from distance, player skill, defenders and release timing. This is not real-world data or a guarantee.')+'</div>'+
  '<p><code>P = clamp(0.69 + skill + timing - distance - contest)</code></p>'+
- '<p>'+L('演示模式：3v3 人机。5v5 十人联网与统一账号仍未接入。','Prototype: 3v3 vs AI. Ten-player multiplayer and shared accounts are not yet implemented.')+'</p>';
+ '<p>'+L('火柴人会根据持球、跑步、投篮和封盖自动改变骨架姿势。动作只影响可视化，胜负仍由独立规则引擎判定。','Stickman poses react to dribbling, running, shooting and blocks. Animation does not replace the rule engine.')+'</p>'+
+ '<p>'+L('当前：3v3 人机。十人联机仍未实现。','Current: local 3v3 vs AI; ten-player networking is not yet implemented.')+'</p>';
 }
 function startShot(){if(charging||game.status!=='playing')return;
  const me=game.players.find(p=>p.id===game.controlled);
@@ -90,35 +92,56 @@ function court(){
  ctx.fillStyle='#ffffff28';ctx.font='900 40px system-ui';ctx.textAlign='center';ctx.fillText('COURT MASTER',560,125);
  ctx.font='600 13px system-ui';ctx.fillText('HOME / 3v3',560,563);
 }
+// V0.3: stick-figure characters replace the old circular player markers.
 function playerSprite(p){
- const selected=p.id===game.controlled,r=19;
- ctx.save();ctx.translate(p.x,p.y);
- ctx.shadowColor='#000b';ctx.shadowBlur=9;ctx.fillStyle='#0007';ctx.beginPath();ctx.ellipse(0,12,20,9,0,0,Math.PI*2);ctx.fill();ctx.shadowBlur=0;
- if(selected){ctx.strokeStyle='#e7ff9d';ctx.lineWidth=4;ctx.beginPath();ctx.arc(0,0,r+9,0,Math.PI*2);ctx.stroke();ctx.beginPath();ctx.moveTo(0,-r-20);ctx.lineTo(-6,-r-32);ctx.lineTo(6,-r-32);ctx.closePath();ctx.fillStyle='#fffbb2';ctx.fill();}
- ctx.fillStyle=p.team===0?'#278dd5':'#d25453';ctx.strokeStyle=p.team===0?'#d8f6ff':'#ffdcd5';ctx.lineWidth=3;ctx.beginPath();ctx.arc(0,0,r,0,Math.PI*2);ctx.fill();ctx.stroke();
- ctx.fillStyle='white';ctx.textAlign='center';ctx.textBaseline='middle';ctx.font='900 13px system-ui';ctx.fillText(String(p.n+1),0,1);
- ctx.textBaseline='alphabetic';ctx.fillStyle='#20313c';ctx.font='900 11px system-ui';ctx.fillText(p.id,0,-27);
- // Small movement sparks and body tilt communicate direction and contact.
- const v=Math.min(1,Math.hypot(p.vx,p.vy)/190);ctx.strokeStyle=p.team===0?'#70cfff':'#ffc0ad';ctx.lineWidth=3;
- ctx.beginPath();ctx.moveTo(-7,14);ctx.lineTo(-7-(p.vx/300)*v*9,22);ctx.moveTo(7,14);ctx.lineTo(7-(p.vx/300)*v*9,22);ctx.stroke();
- if(selected){ctx.fillStyle='#182c37';ctx.fillRect(-23,29,46,5);ctx.fillStyle='#a9ecba';ctx.fillRect(-23,29,46*p.stamina/100,5);}
- ctx.restore();
+ return drawStickman(ctx,p,{
+  time:game.animClock,selected:p.id===game.controlled,
+  hasBall:game.ball.carrier===p.id,
+  charging:charging&&game.ball.carrier===p.id
+ });
 }
 function ballSprite(){
- const b=game.ball,f=b.flight;let x=b.x,y=b.y,arc=0;
- if(b.carrier){const p=game.players.find(p=>p.id===b.carrier);const moving=Math.min(1,Math.hypot(p.vx,p.vy)/185);
-  const phase=performance.now()*.014;
-  x=p.x+18+Math.cos(phase)*4;y=p.y+13+Math.sin(phase)*3;
-  arc=Math.abs(Math.sin(phase))*moving*10;
- }else if(f){const t=Math.min(1,f.elapsed/f.duration);arc=Math.sin(Math.PI*t)*(f.arcHeight||28);}
- if(f){ctx.save();ctx.globalAlpha=.33;ctx.setLineDash([5,8]);ctx.lineWidth=3;ctx.strokeStyle=f.kind==='shot'?'#f9dba0':'#a0dcff';ctx.beginPath();ctx.moveTo(f.from.x,f.from.y);ctx.lineTo(x,y);ctx.stroke();ctx.restore();}
- ctx.save();ctx.fillStyle='#0009';ctx.beginPath();ctx.ellipse(x,y+6,clampBall(12-arc*.025,5,13),clampBall(5-arc*.016,2,5),0,0,Math.PI*2);ctx.fill();
- ctx.translate(x,y-arc);ctx.shadowColor='#ffc37a';ctx.shadowBlur=f?19:8;ctx.fillStyle='#ea7f37';ctx.strokeStyle='#66331d';ctx.lineWidth=2;
- const radius=10+(arc*.024);ctx.beginPath();ctx.arc(0,0,radius,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.shadowBlur=0;
- ctx.beginPath();ctx.moveTo(-radius,0);ctx.lineTo(radius,0);ctx.moveTo(0,-radius);ctx.lineTo(0,radius);ctx.stroke();
+ const b=game.ball,f=b.flight;
+ let x=b.x,y=b.y,arc=0,shadowX=b.x,shadowY=b.y;
+ if(b.carrier){
+  const carrier=game.players.find(p=>p.id===b.carrier);
+  if(carrier){
+   const pose=getStickPose(carrier,{time:game.animClock,hasBall:true,
+    charging:charging&&game.controlled===carrier.id});
+   x=carrier.x+pose.ball.x;y=carrier.y+pose.ball.y;
+   arc=pose.ball.lift;shadowX=x;shadowY=carrier.y+25;
+  }
+ }else if(f){
+  const t=Math.max(0,Math.min(1,f.elapsed/f.duration));
+  arc=Math.sin(Math.PI*t)*(f.arcHeight||(f.kind==='pass'?20:60));
+  const dir=f.kind==='shot'
+   ?(game.players.find(p=>p.id===f.shooter)?.team===0?1:-1)
+   :(game.players.find(p=>p.id===f.receiver)?.team===0?1:-1);
+  // Release visually starts in the figure's hands, then converges to the
+  // deterministic ground-plane flight path owned by engine.mjs.
+  x=b.x+(1-t)*dir*(f.kind==='shot'?6:23);
+  y=b.y-(1-t)*(f.kind==='shot'?43:12);
+ }
+ if(f){
+  ctx.save();ctx.globalAlpha=.35;ctx.setLineDash([5,7]);
+  ctx.lineWidth=2.5;ctx.strokeStyle=f.kind==='shot'?'#ffdc96':'#c3edff';
+  ctx.beginPath();ctx.moveTo(f.from.x,f.from.y);ctx.lineTo(b.x,b.y);
+  ctx.stroke();ctx.restore();
+ }
+ ctx.save();
+ ctx.fillStyle='#06142199';ctx.beginPath();
+ const width=Math.max(5,12-arc*.045);
+ ctx.ellipse(shadowX,shadowY+4,width,Math.max(2,5-arc*.025),0,0,Math.PI*2);ctx.fill();
+ ctx.translate(x,y-arc);
+ ctx.shadowColor='#ffd69c';ctx.shadowBlur=f?18:9;
+ ctx.fillStyle='#ed873d';ctx.strokeStyle='#693720';ctx.lineWidth=2;
+ const radius=10+Math.min(3,arc*.026);
+ ctx.beginPath();ctx.arc(0,0,radius,0,Math.PI*2);ctx.fill();ctx.stroke();ctx.shadowBlur=0;
+ ctx.beginPath();ctx.moveTo(-radius,0);ctx.lineTo(radius,0);
+ ctx.moveTo(0,-radius);ctx.lineTo(0,radius);ctx.stroke();
+ ctx.beginPath();ctx.arc(0,0,radius*.67,-Math.PI/2,Math.PI/2);ctx.stroke();
  ctx.restore();
 }
-function clampBall(v,min,max){return Math.max(min,Math.min(max,v));}
 
 function gameCanvas(){
  ctx.clearRect(0,0,1120,660);court();

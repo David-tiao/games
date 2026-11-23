@@ -1,4 +1,4 @@
-// Court Master V0.2: deterministic collision, defensive and basketball animation core.
+// Court Master V0.3: game rules with deterministic, renderer-only stickman action cues.
 export const COURT = Object.freeze({x:55,y:72,w:1010,h:516,hoopLeft:108,hoopRight:1012,cy:330});
 export const PLAYER_RADIUS=19;
 export const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
@@ -7,12 +7,13 @@ const hoop=team=>({x:team===0?COURT.hoopRight:COURT.hoopLeft,y:COURT.cy});
 function random(s){s.seed=(Math.imul(1664525,s.seed)+1013904223)>>>0;return s.seed/4294967296;}
 function message(s,text){s.events.unshift(text);if(s.events.length>8)s.events.pop();}
 function player(s,id){return s.players.find(p=>p.id===id);}
-const assign=(team,n,x,y)=>({id:(team===0?'B':'R')+(n+1),team,n,x,y,vx:0,vy:0,skill:0.75+n*0.02,stamina:100,cooldown:0});
+const assign=(team,n,x,y)=>({id:(team===0?'B':'R')+(n+1),team,n,x,y,vx:0,vy:0,skill:0.75+n*0.02,stamina:100,cooldown:0,action:null,impact:0});
+function setAction(p,kind,duration){if(p)p.action={kind,elapsed:0,duration};}
 export function createGame(seed=2026, options={}){
  const difficulty=['rookie','normal','pro'].includes(options.difficulty)?options.difficulty:'normal';
  const players=[assign(0,0,355,330),assign(0,1,310,215),assign(0,2,310,440),assign(1,0,750,330),assign(1,1,800,220),assign(1,2,800,445)];
  return {players,seed:seed>>>0,score:[0,0],time:180,shotClock:24,status:'playing',controlled:'B1',difficulty,
-  ball:{x:players[0].x,y:players[0].y,carrier:'B1',flight:null},possession:0,aiClock:0,events:['欢迎来到 2D 球场：蓝队进攻。'],shots:[],lastShot:null,effects:[]};
+  ball:{x:players[0].x,y:players[0].y,carrier:'B1',flight:null},possession:0,aiClock:0,animClock:0,events:['欢迎来到 2D 球场：蓝队进攻。'],shots:[],lastShot:null,effects:[]};
 }
 export function getShotInfo(s,id,release=0.78){
  const p=player(s,id);if(!p)return null;
@@ -46,6 +47,7 @@ export function shootBall(s,id,release=0.78){
  const made=random(s)<info.probability;
  s.ball.flight={kind:'shot',from:{x:p.x,y:p.y},to:target,elapsed:0,duration:0.65+info.distance/900,made,blocked:false,shooter:id,points:info.points,probability:info.probability,arcHeight:clamp(55+info.distance*0.13,60,120)};
  s.ball.carrier=null;s.lastShot={...info,shooter:id,made};
+ setAction(p,'shoot',0.68);
  s.shots.unshift({id,probability:info.probability,made,points:info.points});s.shots.length=Math.min(s.shots.length,12);
  message(s,id+' 投篮 '+Math.round(info.probability*100)+'% · '+info.points+' 分');
  s.effects.push({kind:'release',x:p.x,y:p.y,age:0,duration:0.45,team:p.team});return true;
@@ -60,7 +62,7 @@ export function tryBlockShot(s,defenderId){
  f.to={x:clamp(defender.x+(defender.team===0?30:-30),COURT.x+30,COURT.x+COURT.w-30),y:clamp(defender.y+18,COURT.y+30,COURT.y+COURT.h-30)};
  f.duration=Math.max(f.elapsed+0.24,0.53);
  f.arcHeight=34;
- defender.cooldown=1.15;s.lastShot={...s.lastShot,made:false,blocked:true};
+ defender.cooldown=1.15;setAction(defender,'block',0.75);setAction(shooter,'stagger',0.38);s.lastShot={...s.lastShot,made:false,blocked:true};
  const record=s.shots.find(q=>q.id===f.shooter);if(record)record.made=false;
  s.effects.push({kind:'block',x:defender.x,y:defender.y,age:0,duration:0.85,team:defender.team});
  message(s,defenderId+' 封盖了 '+f.shooter+' 的投篮！');return true;
@@ -75,7 +77,7 @@ export function passBall(s,toId){
  const from=player(s,s.ball.carrier),to=player(s,toId);
  if(!from||!to||from.team!==to.team||from.id===to.id)return false;
  s.ball.flight={kind:'pass',from:{x:from.x,y:from.y},to:{x:to.x,y:to.y},receiver:to.id,elapsed:0,duration:clamp(distance(from,to)/650,.18,.8)};
- s.ball.carrier=null;message(s,from.id+' 传球给 '+to.id);s.effects.push({kind:'pass',x:from.x,y:from.y,age:0,duration:0.3,team:from.team});return true;
+ s.ball.carrier=null;setAction(from,'pass',0.40);message(s,from.id+' 传球给 '+to.id);s.effects.push({kind:'pass',x:from.x,y:from.y,age:0,duration:0.3,team:from.team});return true;
 }
 export function bestPassTarget(s,id,aim=null){
  const p=player(s,id);if(!p)return null;
@@ -92,7 +94,7 @@ export function bestPassTarget(s,id,aim=null){
 export function trySteal(s,id){
  const defender=player(s,id),carrier=player(s,s.ball.carrier);
  if(!defender||!carrier||defender.team===carrier.team||defender.cooldown>0||distance(defender,carrier)>55)return false;
- defender.cooldown=1.1;
+ defender.cooldown=1.1;setAction(defender,'steal',0.42);
  const chance=defender.team===1?(s.difficulty==='pro'?.51:s.difficulty==='rookie'?.23:.39):.44;
  if(random(s)<chance){setCarrier(s,id);s.shotClock=24;message(s,id+' 抢断成功！');s.effects.push({kind:'steal',x:defender.x,y:defender.y,age:0,duration:0.5,team:defender.team});return true;}
  message(s,id+' 抢断未成功');return false;
@@ -111,6 +113,7 @@ export function resolveCollisions(s){
  for(let pass=0;pass<30;pass++)for(let i=0;i<ps.length;i++)for(let j=i+1;j<ps.length;j++){
   const a=ps[i],b=ps[j];let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy);
   if(d>=r)continue;
+  if(pass===0 && d<r-8){a.impact=Math.max(a.impact||0,.7);b.impact=Math.max(b.impact||0,.7);}
   if(d<1e-9){dx=(i+j)%2?1:0;dy=(i+j)%2?0:1;d=1;}
   const push=(r-d)/2,ux=dx/d,uy=dy/d;
   a.x=clamp(a.x-ux*push,COURT.x+PLAYER_RADIUS,COURT.x+COURT.w-PLAYER_RADIUS);
@@ -168,6 +171,11 @@ function aiPlayers(s,dt){
 export function stepGame(s,dt,input={x:0,y:0,turbo:false}){
  if(s.status!=='playing')return s;
  dt=clamp(Number(dt)||0,0,0.05);if(!dt)return s;
+ s.animClock=(s.animClock||0)+dt;
+ for(const p of s.players){
+  if(p.action){p.action.elapsed+=dt;if(p.action.elapsed>=p.action.duration)p.action=null;}
+  p.impact=Math.max(0,(p.impact||0)-dt*2.2);
+ }
  s.time=Math.max(0,s.time-dt);
  if(s.time===0&&s.ball.flight?.kind!=='shot'){s.status='finished';message(s,'比赛结束');return s;}
  // A shot that left the hand before the buzzer may finish in the air.
@@ -213,7 +221,7 @@ export function stepGame(s,dt,input={x:0,y:0,turbo:false}){
   let closest=null,d=32;
   for(const p of s.players){const nd=distance(p,s.ball);if(nd<d){closest=p;d=nd;}}
   if(closest){const offensive=closest.team===s.possession;setCarrier(s,closest.id);s.shotClock=offensive?14:24;
-   message(s,closest.id+(offensive?' 抢到进攻篮板（14 秒）':' 抢到防守篮板（24 秒）'));
+   message(s,closest.id+(offensive?' 抢到进攻篮板（14 秒）':' 抢到防守篮板（24 秒）'));setAction(closest,'rebound',0.54);
    s.effects.push({kind:'rebound',x:closest.x,y:closest.y,age:0,duration:0.45,team:closest.team});}
  }
  // AI shooting, driving, and steal decisions; only process at discrete intervals.

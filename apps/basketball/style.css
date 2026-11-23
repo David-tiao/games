@@ -7,3 +7,8 @@
 #shotClock{transition:color .2s,background-color .2s}
 @media(max-width:760px){.menu #difficulty{font-size:10px;padding:7px 6px}.menu #pause{font-size:10px;padding:7px 5px}.menu #restart{padding:7px 5px}.hud{gap:5px}.menu{gap:3px}}
 @media(max-width:420px){.menu #pause{font-size:0}.menu #pause::after{content:'⏸';font-size:15px}.menu #difficulty{font-size:9px}.clocks{font-size:15px}}
+
+/* V0.3 — distinctive neon stickman artwork uses Canvas lines rather than CSS sprites. */
+.title>span{letter-spacing:1.6px;text-shadow:0 0 14px #6fe5f24a}
+.basket-figure-caption{font-size:11px;letter-spacing:.7px;color:#bad7e1}
+@media(max-width:800px){.title>span{font-size:15px;letter-spacing:1px}}

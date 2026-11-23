@@ -38,3 +38,6 @@ body.in-game.balls-mode .playerBar.expanded .playerLinks{flex-wrap:wrap;justify-
 .basketball .cardArt{background:radial-gradient(circle at center,#e9a25c67,transparent 54%),linear-gradient(135deg,#765035,#13273c)}
 .basketball .symbol{font-family:system-ui,sans-serif;font-size:74px;text-shadow:0 10px 30px #bd683b77}
 .basketball .cardTag{color:#ffcb88}
+
+/* V1.6: neon stickman basketball, sixth world. */
+.basketball .symbol{font-size:88px;color:#ffd0a4;text-shadow:0 0 30px #ffad73a8,0 0 55px #9bdcff55}
