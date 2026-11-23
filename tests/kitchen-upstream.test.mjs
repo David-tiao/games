@@ -32,6 +32,8 @@ test('asset downloader verifies exact source revision and never rewrites rules',
  const s=read('scripts/build-kitchen-open-source.sh');
  assert.match(s,/git -C "\$TEMP" fetch --depth 1 origin "\$PIN"/);
  assert.match(s,/ACTUAL.*PIN/);
+ assert.match(s,/git -C "\$TEMP" checkout -q --detach FETCH_HEAD/);
+ assert.match(s,/test -d "\$TEMP\/assets"/);
  assert.match(s,/make -C "\$UP" build-web/);
  assert.match(s,/EMCC=/);
  assert.match(s,/raylib/);

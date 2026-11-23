@@ -28,6 +28,9 @@ if [[ ! -f "$UP/assets/music/theme_start.mp3" || ! -f "$UP/assets/music/theme_lo
   git -C "$TEMP" fetch --depth 1 origin "$PIN"
   ACTUAL="$(git -C "$TEMP" rev-parse FETCH_HEAD)"
   if [[ "$ACTUAL" != "$PIN" ]]; then echo "Upstream SHA mismatch" >&2; exit 1; fi
+  # Fetch populates FETCH_HEAD only; checkout is required to materialize assets/.
+  git -C "$TEMP" checkout -q --detach FETCH_HEAD
+  test -d "$TEMP/assets" || { echo "[kitchen] Upstream assets missing" >&2; exit 1; }
   rm -rf "$UP/assets"
   cp -a "$TEMP/assets" "$UP/assets"
   rm -rf "$TEMP"
